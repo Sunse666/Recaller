@@ -8,7 +8,6 @@ from .. import schemas
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
-
 def _group_to_detail(g: Group) -> schemas.GroupDetail:
     return schemas.GroupDetail(
         id=g.id,
@@ -20,7 +19,6 @@ def _group_to_detail(g: Group) -> schemas.GroupDetail:
         created_at=g.created_at,
     )
 
-
 @router.get("", response_model=list[schemas.GroupDetail])
 def list_groups(search: str = "", db: Session = Depends(get_db)):
     query = db.query(Group)
@@ -29,14 +27,12 @@ def list_groups(search: str = "", db: Session = Depends(get_db)):
         query = query.filter((Group.group_name.ilike(like)) | (Group.group_number.ilike(like)))
     return [_group_to_detail(g) for g in query.all()]
 
-
 @router.get("/{group_id}", response_model=schemas.GroupDetail)
 def get_group(group_id: int, db: Session = Depends(get_db)):
     g = db.query(Group).get(group_id)
     if not g:
         raise HTTPException(status_code=404, detail="群不存在")
     return _group_to_detail(g)
-
 
 @router.post("", response_model=schemas.GroupDetail, status_code=201)
 def create_group(data: schemas.GroupCreate, db: Session = Depends(get_db)):
@@ -55,7 +51,6 @@ def create_group(data: schemas.GroupCreate, db: Session = Depends(get_db)):
     db.refresh(g)
     return _group_to_detail(g)
 
-
 @router.put("/{group_id}", response_model=schemas.GroupDetail)
 def update_group(group_id: int, data: schemas.GroupUpdate, db: Session = Depends(get_db)):
     g = db.query(Group).get(group_id)
@@ -70,7 +65,6 @@ def update_group(group_id: int, data: schemas.GroupUpdate, db: Session = Depends
     db.refresh(g)
     return _group_to_detail(g)
 
-
 @router.delete("/{group_id}", status_code=204)
 def delete_group(group_id: int, db: Session = Depends(get_db)):
     g = db.query(Group).get(group_id)
@@ -78,9 +72,6 @@ def delete_group(group_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="群不存在")
     db.delete(g)
     db.commit()
-
-
-# ── Group Members ──
 
 @router.get("/{group_id}/members", response_model=list[schemas.AccountBrief])
 def list_group_members(group_id: int, db: Session = Depends(get_db)):
@@ -101,9 +92,6 @@ def list_group_members(group_id: int, db: Session = Depends(get_db)):
         for m in memberships
         if m.account
     ]
-
-
-# ── Add/remove account to/from group ──
 
 @router.post("/{group_id}/members", response_model=schemas.MembershipBrief, status_code=201)
 def add_member(group_id: int, data: schemas.MembershipCreate, db: Session = Depends(get_db)):
@@ -137,7 +125,6 @@ def add_member(group_id: int, data: schemas.MembershipCreate, db: Session = Depe
         left_at=m.left_at, is_pinned=m.is_pinned, is_muted=m.is_muted,
     )
 
-
 @router.put("/{group_id}/members/{membership_id}", response_model=schemas.MembershipBrief)
 def update_membership(group_id: int, membership_id: int, data: schemas.MembershipUpdate, db: Session = Depends(get_db)):
     m = db.query(GroupMembership).filter(
@@ -155,7 +142,6 @@ def update_membership(group_id: int, membership_id: int, data: schemas.Membershi
         group_nickname=m.group_nickname, joined_at=m.joined_at,
         left_at=m.left_at, is_pinned=m.is_pinned, is_muted=m.is_muted,
     )
-
 
 @router.delete("/{group_id}/members/{membership_id}", status_code=204)
 def remove_member(group_id: int, membership_id: int, db: Session = Depends(get_db)):

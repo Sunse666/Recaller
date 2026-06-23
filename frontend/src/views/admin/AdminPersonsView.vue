@@ -141,7 +141,6 @@ onMounted(loadPersons)
 
 <template>
   <div>
-    <!-- 列表视图 -->
     <template v-if="view === 'list'">
       <div class="flex items-center justify-between mb-5">
         <h2 class="text-lg font-bold">群友管理</h2>
@@ -220,7 +219,6 @@ onMounted(loadPersons)
       </div>
     </template>
 
-    <!-- 编辑/创建表单 -->
     <template v-else>
       <div class="max-w-2xl">
         <div class="flex items-center gap-3 mb-5">
@@ -229,7 +227,6 @@ onMounted(loadPersons)
         </div>
 
         <div class="bg-white rounded-xl p-6 space-y-4">
-          <!-- 基本信息 -->
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="text-xs text-gray-500 mb-1 block">姓名 *</label>
@@ -268,7 +265,6 @@ onMounted(loadPersons)
             </div>
           </div>
 
-          <!-- 圈子标签 -->
           <div>
             <label class="text-xs text-gray-500 mb-1 block">圈子标签</label>
             <div class="flex gap-2 mb-2">
@@ -283,7 +279,6 @@ onMounted(loadPersons)
             </div>
           </div>
 
-          <!-- 印象标签 -->
           <div>
             <label class="text-xs text-gray-500 mb-1 block">印象标签</label>
             <div class="flex gap-2 mb-2">
@@ -303,7 +298,6 @@ onMounted(loadPersons)
             <textarea v-model="form.notes" rows="3" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5] resize-none"></textarea>
           </div>
 
-          <!-- 账号管理 (仅编辑时有) -->
           <div v-if="view === 'edit'" class="border-t border-gray-100 pt-4 mt-4">
             <h3 class="font-bold text-sm mb-3">账号管理</h3>
 
@@ -344,7 +338,6 @@ onMounted(loadPersons)
             </div>
           </div>
 
-          <!-- 保存 -->
           <div class="flex items-center gap-3 pt-2">
             <button @click="doSave" :disabled="saving" class="px-6 py-2 bg-[#12b7f5] text-white text-sm rounded-lg hover:bg-[#0ea0db] disabled:opacity-50 transition">
               {{ saving ? '保存中...' : '保存' }}

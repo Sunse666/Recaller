@@ -23,16 +23,12 @@ app.add_middleware(
 
 security = HTTPBearer(auto_error=False)
 
-
 def require_admin(
     creds: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> str:
     if not creds or not verify_token(creds.credentials):
         raise HTTPException(status_code=401, detail="未登录或令牌已过期")
     return verify_token(creds.credentials)
-
-
-# ── Auth routes ──
 
 @app.post("/api/auth/login")
 def login(payload: dict, db: Session = Depends(get_db)):
@@ -41,19 +37,13 @@ def login(payload: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     return {"token": token, "username": payload.get("username")}
 
-
 @app.post("/api/auth/logout")
 def logout(user: str = Depends(require_admin)):
-    # Token is extracted from the Authorization header context
     return {"status": "ok"}
-
 
 @app.get("/api/auth/me")
 def me(user: str = Depends(require_admin)):
     return {"username": user}
-
-
-# ── Business routers ──
 
 app.include_router(persons.router)
 app.include_router(accounts.router)
@@ -61,9 +51,6 @@ app.include_router(groups.router)
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
-
-
-# ── Bootstrap admin ──
 
 def _init_admin():
     db = SessionLocal()
@@ -75,6 +62,5 @@ def _init_admin():
             print(f"[init] 已创建管理员: {username}")
     finally:
         db.close()
-
 
 _init_admin()

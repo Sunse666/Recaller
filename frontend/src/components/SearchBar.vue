@@ -13,12 +13,12 @@ watch(query, (val) => {
 
 <template>
   <div class="relative">
-    <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+    <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">🔍</span>
     <input
       v-model="query"
       type="text"
       placeholder="搜索群友昵称、账号..."
-      class="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl bg-slate-100 border-0 outline-none focus:bg-white focus:ring-2 focus:ring-blue-400/30 focus:shadow-sm transition-all"
+      class="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl bg-zinc-800 text-white placeholder-zinc-500 border border-zinc-700 outline-none focus:border-zinc-500 focus:bg-zinc-700/50 transition-all"
     />
   </div>
 </template>

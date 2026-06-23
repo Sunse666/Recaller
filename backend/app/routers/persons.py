@@ -8,7 +8,6 @@ from .. import schemas
 
 router = APIRouter(prefix="/api/persons", tags=["persons"])
 
-
 def _person_to_brief(p: Person) -> schemas.PersonBrief:
     return schemas.PersonBrief(
         id=p.id,
@@ -21,7 +20,6 @@ def _person_to_brief(p: Person) -> schemas.PersonBrief:
         importance=p.importance,
         account_count=len(p.accounts) if p.accounts else 0,
     )
-
 
 def _person_to_detail(p: Person) -> schemas.PersonDetail:
     return schemas.PersonDetail(
@@ -40,7 +38,6 @@ def _person_to_detail(p: Person) -> schemas.PersonDetail:
         updated_at=p.updated_at,
     )
 
-
 @router.get("", response_model=list[schemas.PersonBrief])
 def list_persons(
     search: str = Query(default="", description="搜索昵称、备注、账号"),
@@ -58,14 +55,12 @@ def list_persons(
     persons = query.order_by(Person.importance.desc(), Person.name).all()
     return [_person_to_brief(p) for p in persons]
 
-
 @router.get("/{person_id}", response_model=schemas.PersonDetail)
 def get_person(person_id: int, db: Session = Depends(get_db)):
     p = db.query(Person).get(person_id)
     if not p:
         raise HTTPException(status_code=404, detail="群友不存在")
     return _person_to_detail(p)
-
 
 @router.post("", response_model=schemas.PersonDetail, status_code=201)
 def create_person(data: schemas.PersonCreate, db: Session = Depends(get_db)):
@@ -86,7 +81,6 @@ def create_person(data: schemas.PersonCreate, db: Session = Depends(get_db)):
     db.refresh(p)
     return _person_to_detail(p)
 
-
 @router.put("/{person_id}", response_model=schemas.PersonDetail)
 def update_person(person_id: int, data: schemas.PersonUpdate, db: Session = Depends(get_db)):
     p = db.query(Person).get(person_id)
@@ -101,7 +95,6 @@ def update_person(person_id: int, data: schemas.PersonUpdate, db: Session = Depe
     db.refresh(p)
     return _person_to_detail(p)
 
-
 @router.delete("/{person_id}", status_code=204)
 def delete_person(person_id: int, db: Session = Depends(get_db)):
     p = db.query(Person).get(person_id)
@@ -109,9 +102,6 @@ def delete_person(person_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="群友不存在")
     db.delete(p)
     db.commit()
-
-
-# ── Person Relations ──
 
 @router.get("/{person_id}/relations", response_model=list[schemas.RelationBrief])
 def list_relations(person_id: int, db: Session = Depends(get_db)):
@@ -121,7 +111,6 @@ def list_relations(person_id: int, db: Session = Depends(get_db)):
     outgoing = db.query(PersonRelation).filter(PersonRelation.person_id_1 == person_id).all()
     incoming = db.query(PersonRelation).filter(PersonRelation.person_id_2 == person_id).all()
     return outgoing + incoming
-
 
 @router.post("/{person_id}/relations", response_model=schemas.RelationBrief, status_code=201)
 def add_relation(person_id: int, data: schemas.RelationCreate, db: Session = Depends(get_db)):
@@ -138,7 +127,6 @@ def add_relation(person_id: int, data: schemas.RelationCreate, db: Session = Dep
     db.refresh(rel)
     return rel
 
-
 @router.delete("/{person_id}/relations/{relation_id}", status_code=204)
 def remove_relation(person_id: int, relation_id: int, db: Session = Depends(get_db)):
     rel = db.query(PersonRelation).filter(
@@ -150,13 +138,9 @@ def remove_relation(person_id: int, relation_id: int, db: Session = Depends(get_
     db.delete(rel)
     db.commit()
 
-
-# ── Person Meetings ──
-
 @router.get("/{person_id}/meetings", response_model=list[schemas.MeetingBrief])
 def list_meetings(person_id: int, db: Session = Depends(get_db)):
     return db.query(PersonMeeting).filter(PersonMeeting.person_id == person_id).all()
-
 
 @router.post("/{person_id}/meetings", response_model=schemas.MeetingBrief, status_code=201)
 def add_meeting(person_id: int, data: schemas.MeetingCreate, db: Session = Depends(get_db)):
@@ -165,7 +149,6 @@ def add_meeting(person_id: int, data: schemas.MeetingCreate, db: Session = Depen
     db.commit()
     db.refresh(m)
     return m
-
 
 @router.delete("/{person_id}/meetings/{meeting_id}", status_code=204)
 def remove_meeting(person_id: int, meeting_id: int, db: Session = Depends(get_db)):

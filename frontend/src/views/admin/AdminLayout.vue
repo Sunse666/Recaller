@@ -27,7 +27,6 @@ async function doLogout() {
 
 <template>
   <div class="min-h-screen flex bg-gray-100">
-    <!-- 左侧菜单 -->
     <aside class="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0">
       <div class="px-5 py-4 border-b border-gray-100">
         <h1 class="text-base font-bold text-[#12b7f5]">记忆助手</h1>
@@ -54,7 +53,6 @@ async function doLogout() {
       </div>
     </aside>
 
-    <!-- 右侧内容 -->
     <main class="flex-1 p-6 overflow-y-auto">
       <RouterView />
     </main>

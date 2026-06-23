@@ -32,7 +32,6 @@ watch(() => route.params.personName, loadPerson)
 
 <template>
   <div class="min-h-screen bg-[#f5f5f5]" v-if="person">
-    <!-- 顶栏 -->
     <header class="bg-white shadow-sm sticky top-0 z-10">
       <div class="max-w-3xl mx-auto px-6 py-4 flex items-center gap-4">
         <button @click="goBack" class="text-gray-500 hover:text-gray-700 text-lg">&larr;</button>
@@ -42,7 +41,6 @@ watch(() => route.params.personName, loadPerson)
     </header>
 
     <main class="max-w-3xl mx-auto px-6 py-8 space-y-8">
-      <!-- 头像 + 基本信息 -->
       <div class="bg-white rounded-xl p-6 flex items-start gap-5">
         <img
           :src="person.avatar || '/default-avatar.svg'"
@@ -73,7 +71,6 @@ watch(() => route.params.personName, loadPerson)
         </div>
       </div>
 
-      <!-- 账号列表 -->
       <section class="bg-white rounded-xl p-6">
         <h3 class="font-bold mb-4">账号</h3>
         <div v-if="accounts.length === 0" class="text-sm text-gray-400">暂无账号</div>
@@ -89,7 +86,6 @@ watch(() => route.params.personName, loadPerson)
         </div>
       </section>
 
-      <!-- 相遇记录 -->
       <section v-if="meetings.length > 0" class="bg-white rounded-xl p-6">
         <h3 class="font-bold mb-4">相遇记录</h3>
         <div v-for="m in meetings" :key="m.id" class="text-sm text-gray-600 py-1">
@@ -97,7 +93,6 @@ watch(() => route.params.personName, loadPerson)
         </div>
       </section>
 
-      <!-- 人物关系 -->
       <section v-if="relations.length > 0" class="bg-white rounded-xl p-6">
         <h3 class="font-bold mb-4">关系</h3>
         <div v-for="r in relations" :key="r.id" class="text-sm text-gray-600 py-1">

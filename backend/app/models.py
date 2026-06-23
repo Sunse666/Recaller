@@ -4,10 +4,8 @@ from sqlalchemy.orm import relationship
 
 from .database import Base
 
-
 def _utcnow():
     return datetime.datetime.now(datetime.timezone.utc)
-
 
 class Person(Base):
     __tablename__ = "persons"
@@ -31,7 +29,6 @@ class Person(Base):
     relations_to = relationship("PersonRelation", foreign_keys="PersonRelation.person_id_2", cascade="all, delete-orphan")
     meetings = relationship("PersonMeeting", back_populates="person", cascade="all, delete-orphan")
 
-
 class Account(Base):
     __tablename__ = "accounts"
 
@@ -47,7 +44,6 @@ class Account(Base):
     nickname_histories = relationship("AccountNicknameHistory", back_populates="account", cascade="all, delete-orphan")
     memberships = relationship("GroupMembership", back_populates="account", cascade="all, delete-orphan")
 
-
 class AccountNicknameHistory(Base):
     __tablename__ = "account_nickname_histories"
 
@@ -58,7 +54,6 @@ class AccountNicknameHistory(Base):
     changed_at = Column(DateTime, nullable=False)
 
     account = relationship("Account", back_populates="nickname_histories")
-
 
 class Group(Base):
     __tablename__ = "groups"
@@ -72,7 +67,6 @@ class Group(Base):
     created_at = Column(DateTime, default=_utcnow)
 
     memberships = relationship("GroupMembership", back_populates="group", cascade="all, delete-orphan")
-
 
 class GroupMembership(Base):
     __tablename__ = "group_memberships"
@@ -89,7 +83,6 @@ class GroupMembership(Base):
     account = relationship("Account", back_populates="memberships")
     group = relationship("Group", back_populates="memberships")
 
-
 class PersonRelation(Base):
     __tablename__ = "person_relations"
 
@@ -101,7 +94,6 @@ class PersonRelation(Base):
     person_1 = relationship("Person", foreign_keys=[person_id_1], back_populates="relations_from")
     person_2 = relationship("Person", foreign_keys=[person_id_2], back_populates="relations_to")
 
-
 class PersonMeeting(Base):
     __tablename__ = "person_meetings"
 
@@ -111,7 +103,6 @@ class PersonMeeting(Base):
     met_at = Column(String(200), nullable=True)
 
     person = relationship("Person", back_populates="meetings")
-
 
 class AdminUser(Base):
     __tablename__ = "admin_users"

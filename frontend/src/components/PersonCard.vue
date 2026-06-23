@@ -3,68 +3,58 @@ import { computed } from 'vue'
 
 const props = defineProps({
   person: { type: Object, required: true },
-  gradient: { type: String, default: 'from-blue-500 to-cyan-500' },
+  image: { type: String, default: '' },
 })
 defineEmits(['click'])
 
-const initials = computed(() => {
-  return (props.person.name || '?')[0]
-})
+const initials = computed(() => (props.person.name || '?')[0])
 </script>
 
 <template>
   <div
     @click="$emit('click')"
-    class="group relative bg-white rounded-2xl overflow-hidden cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-gray-100"
+    class="group relative w-full overflow-hidden cursor-pointer"
   >
-    <!-- 顶部渐变条 -->
-    <div :class="['h-2 bg-gradient-to-r', gradient]" />
+    <img
+      v-if="image"
+      :src="image"
+      class="w-full h-auto block"
+    />
+    <div
+      v-else
+      class="w-full bg-gradient-to-br from-zinc-700 to-zinc-800 flex items-center justify-center"
+      style="aspect-ratio: 3/4"
+    >
+      <span class="text-6xl font-bold text-zinc-600">{{ initials }}</span>
+    </div>
 
-    <div class="p-6">
-      <!-- 头像 + 姓名区 -->
-      <div class="flex items-start gap-4 mb-4">
-        <div class="relative shrink-0">
-          <div v-if="person.avatar" class="w-16 h-16 rounded-2xl overflow-hidden ring-2 ring-gray-100">
-            <img :src="person.avatar" class="w-full h-full object-cover" />
-          </div>
-          <div v-else :class="['w-16 h-16 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white text-2xl font-bold', gradient]">
-            {{ initials }}
-          </div>
-          <span v-if="person.importance" class="absolute -bottom-1 -right-1 text-xs">
-            {{ '⭐'.repeat(Math.min(person.importance, 3)) }}
-          </span>
-        </div>
+    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-90 group-hover:opacity-100 transition-opacity" />
+    <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
 
-        <div class="flex-1 min-w-0 pt-1">
-          <h3 class="text-base font-bold text-slate-800 truncate">{{ person.name }}</h3>
-          <p v-if="person.remark" class="text-sm text-slate-400 truncate mt-0.5">{{ person.remark }}</p>
-          <p v-if="person.location" class="text-xs text-slate-300 mt-0.5">📍 {{ person.location }}</p>
-        </div>
+    <div class="absolute bottom-0 left-0 right-0 p-3 md:p-5">
+      <div class="flex items-center gap-2 mb-1">
+        <h3 class="text-white font-bold text-sm md:text-lg truncate">{{ person.name }}</h3>
+        <span v-if="person.importance" class="text-xs shrink-0">
+          {{ '⭐'.repeat(Math.min(person.importance, 5)) }}
+        </span>
       </div>
+      <p v-if="person.remark" class="text-white/70 text-xs md:text-sm truncate mb-1">{{ person.remark }}</p>
 
-      <!-- 签名 -->
-      <p v-if="person.signature" class="text-sm text-slate-500 leading-relaxed mb-3 line-clamp-2">
-        {{ person.signature }}
-      </p>
-
-      <!-- 标签 -->
-      <div class="flex flex-wrap gap-1.5 mb-3">
-        <span
-          v-for="tag in person.impression_tags?.slice(0, 3)"
-          :key="tag"
-          class="px-2.5 py-1 text-xs rounded-full bg-amber-50 text-amber-600 font-medium"
-        >{{ tag }}</span>
-        <span
-          v-for="tag in person.circle_tags?.slice(0, 3)"
-          :key="tag"
-          class="px-2.5 py-1 text-xs rounded-full bg-blue-50 text-blue-600 font-medium"
-        >{{ tag }}</span>
-      </div>
-
-      <!-- 底部信息 -->
-      <div class="flex items-center justify-between text-xs text-slate-400 pt-3 border-t border-gray-50">
-        <span>{{ person.account_count }} 个账号</span>
-        <span v-if="person.birthday" class="text-slate-300">🎂 {{ person.birthday }}</span>
+      <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <p v-if="person.signature" class="text-white/60 text-xs line-clamp-2 mb-2">{{ person.signature }}</p>
+        <div class="flex flex-wrap gap-1">
+          <span
+            v-for="tag in person.impression_tags?.slice(0, 2)"
+            :key="tag"
+            class="px-2 py-0.5 text-[10px] rounded-full bg-white/20 text-white/90 backdrop-blur-sm"
+          >{{ tag }}</span>
+          <span
+            v-for="tag in person.circle_tags?.slice(0, 2)"
+            :key="tag"
+            class="px-2 py-0.5 text-[10px] rounded-full bg-white/15 text-white/80 backdrop-blur-sm"
+          >{{ tag }}</span>
+        </div>
+        <p v-if="person.birthday" class="text-white/50 text-[10px] mt-2">🎂 {{ person.birthday }}</p>
       </div>
     </div>
   </div>

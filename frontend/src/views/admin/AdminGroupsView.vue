@@ -211,7 +211,6 @@ onMounted(loadGroups)
       </div>
     </template>
 
-    <!-- 成员弹窗 -->
     <div v-if="showMembers" class="fixed inset-0 bg-black/30 z-20 flex items-center justify-center" @click.self="showMembers = false">
       <div class="bg-white rounded-xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
         <div class="flex items-center justify-between mb-4">
@@ -219,7 +218,6 @@ onMounted(loadGroups)
           <button @click="showMembers = false" class="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
         </div>
 
-        <!-- 添加成员 -->
         <div class="flex gap-2 mb-4">
           <select v-model="memberForm.account_id" class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none">
             <option value="">选择账号</option>
