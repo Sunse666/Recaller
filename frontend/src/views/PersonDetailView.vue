@@ -13,7 +13,7 @@ const meetings = ref([])
 const relations = ref([])
 
 const ownerUid = computed(() => route.params.uid)
-const personBoardId = computed(() => parseInt(route.params.boardId) || 0)
+const personBoardName = computed(() => route.params.boardName || '')
 const boardType = ref('image')
 
 const notFound = ref(false)
@@ -53,11 +53,7 @@ async function loadPerson() {
 }
 
 function goBack() {
-  if (ownerUid.value && personBoardId.value) {
-    router.push(`/${ownerUid.value}`)
-  } else {
-    router.push('/')
-  }
+  router.push(ownerUid.value ? `/${ownerUid.value}` : '/')
 }
 
 const headerHidden = ref(false)

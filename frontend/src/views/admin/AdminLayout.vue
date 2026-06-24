@@ -43,14 +43,12 @@ const newBoardName = ref('')
 const newBoardIcon = ref('')
 const newBoardType = ref('image')
 
-// ── 头像上传 ──
 async function onAvatarUpload(e) {
   const file = e.target.files?.[0]; if (!file) return
   try { await auth.uploadAvatar(file) } catch (err) { alert(labels.value.avatarUploadFail + ': ' + err.message) }
   finally { e.target.value = '' }
 }
 
-// ── 修改用户名 ──
 const editingUser = ref(false)
 const newUserName = ref('')
 function doChangeUsername() {
@@ -85,7 +83,7 @@ async function createBoard() {
 }
 
 onMounted(async () => {
-  if (route.name === 'user-profile' || route.name === 'user-person-detail') return  // 公开页面无需登录
+  if (route.name === 'user-profile' || route.name === 'user-person-detail') return
   const ok = await auth.checkAuth()
   if (!ok) {
     router.replace('/login')

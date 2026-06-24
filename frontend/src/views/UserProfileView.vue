@@ -11,6 +11,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const profileBoard = ref(null)
+const boardMap = ref({})
 const labels = useLabels(profileBoard)
 
 const profileUid = route.params.uid
@@ -19,7 +20,6 @@ const persons = ref([])
 const loading = ref(true)
 const search = ref('')
 
-// ── 图片：从用户上传的图片池取，或用人物的 avatar，都没有则用纯色 ──
 const bannerImages = ref([])
 const imageAspects = ref({})
 
@@ -43,14 +43,13 @@ function preloadImage(src) {
 function pickImages(personsList) {
   const pool = bannerImages.value.length > 0 ? [...bannerImages.value] : []
   return personsList.map(p => {
-    if (p.card_bg) return p.card_bg           // 固定：卡片背景 URL → 控制卡片分辨率
-    if (pool.length === 0) return placeholderUrl(p.name)  // 无图池 → 纯色占位
-    const idx = Math.floor(Math.random() * pool.length)   // 随机：从图池选
+    if (p.card_bg) return p.card_bg
+    if (pool.length === 0) return placeholderUrl(p.name)
+    const idx = Math.floor(Math.random() * pool.length)
     return pool[idx]
   })
 }
 
-// ── 瀑布流布局 ──
 const NICE_SCALES = [3 / 8, 1 / 2, 5 / 8, 2 / 3, 3 / 4, 7 / 8, 1, 8 / 7, 4 / 3, 3 / 2, 2]
 
 function calcWidth(aspect) {
@@ -103,14 +102,15 @@ async function computeLayout(personsList) {
   places.value = result
 }
 
-// ── 数据加载 ──
 async function loadPersons() {
   loading.value = true
   try {
     const profile = await api.getUserProfile(profileUid)
     const boards = profile.boards || []
-    profileBoard.value = boards[0] || null  // 用第一个公开画板的 labels
-    // 从第一个公开画板加载图片池
+    profileBoard.value = boards[0] || null
+    const map = {}
+    boards.forEach(b => { map[b.id] = b.name || 'default' })
+    boardMap.value = map
     bannerImages.value = []
     for (const b of boards) {
       const fc = typeof b.field_config === 'object' ? b.field_config : {}
@@ -132,7 +132,10 @@ async function loadPersons() {
 }
 
 function onSearch(val) { search.value = val; loadPersons() }
-function goDetail(p) { router.push(`/${profileUid}/${p.board_id || 0}/${encodeURIComponent(p.name)}`) }
+function goDetail(p) {
+  const boardName = boardMap.value[p.board_id] || 'default'
+  router.push(`/${profileUid}/${encodeURIComponent(boardName)}/${encodeURIComponent(p.name)}`)
+}
 
 let resizeTimer
 function onResize() { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (persons.value.length) computeLayout(persons.value) }, 300) }

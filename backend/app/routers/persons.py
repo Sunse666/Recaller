@@ -22,6 +22,28 @@ def _get_board_id(user: dict, db: Session, board_id: int | None = None) -> int |
     return board.id if board else None
 
 
+def _require_board_owner(db: Session, board_id: int, user: dict):
+    """校验当前用户是否拥有该画板，admin 可访问所有画板"""
+    if user["role"] == "admin":
+        return
+    u = db.query(User).filter(User.uid == user["uid"]).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    board = db.query(Board).filter(Board.id == board_id, Board.user_id == u.id).first()
+    if not board:
+        raise HTTPException(status_code=403, detail="无权操作此画板")
+
+
+def _require_person_owner(db: Session, person_id: int, user: dict):
+    """校验当前用户是否拥有该 Person 所属的画板"""
+    p = db.query(Person).get(person_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="条目不存在")
+    if p.board_id:
+        _require_board_owner(db, p.board_id, user)
+    return p
+
+
 def _person_to_brief(p: Person) -> schemas.PersonBrief:
     return schemas.PersonBrief(
         id=p.id, name=p.name, remark=p.remark, signature=p.signature,
@@ -96,6 +118,7 @@ def create_person(data: schemas.PersonCreate, db: Session = Depends(get_db), use
     bid = data.board_id or _get_board_id(user, db, None)
     if not bid:
         raise HTTPException(status_code=400, detail="请先创建一个画板")
+    _require_board_owner(db, bid, user)
     p = Person(
         board_id=bid, name=data.name, remark=data.remark,
         signature=data.signature, location=data.location, avatar=data.avatar,
@@ -112,9 +135,7 @@ def create_person(data: schemas.PersonCreate, db: Session = Depends(get_db), use
 
 @router.put("/{person_id}", response_model=schemas.PersonDetail)
 def update_person(person_id: int, data: schemas.PersonUpdate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
-    p = db.query(Person).get(person_id)
-    if not p:
-        raise HTTPException(status_code=404, detail="条目不存在")
+    p = _require_person_owner(db, person_id, user)
     changed = {}
     for field, val in data.model_dump(exclude_unset=True).items():
         if field == "notes" and val is not None:
@@ -131,9 +152,7 @@ def update_person(person_id: int, data: schemas.PersonUpdate, db: Session = Depe
 
 @router.delete("/{person_id}", status_code=204)
 def delete_person(person_id: int, db: Session = Depends(get_db), user: dict = Depends(require_user)):
-    p = db.query(Person).get(person_id)
-    if not p:
-        raise HTTPException(status_code=404, detail="条目不存在")
+    p = _require_person_owner(db, person_id, user)
     name = p.name
     db.delete(p)
     audit_log(db, user["username"], "delete", "person", person_id, {"name": name})
@@ -152,6 +171,7 @@ def list_relations(person_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{person_id}/relations", response_model=schemas.RelationBrief, status_code=201)
 def add_relation(person_id: int, data: schemas.RelationCreate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
+    _require_person_owner(db, person_id, user)
     if data.person_id_2 == person_id:
         raise HTTPException(status_code=400, detail="不能和自己建立关系")
     exists = db.query(PersonRelation).filter(
@@ -168,6 +188,7 @@ def add_relation(person_id: int, data: schemas.RelationCreate, db: Session = Dep
 
 @router.delete("/{person_id}/relations/{relation_id}", status_code=204)
 def remove_relation(person_id: int, relation_id: int, db: Session = Depends(get_db), user: dict = Depends(require_user)):
+    _require_person_owner(db, person_id, user)
     rel = db.query(PersonRelation).filter(
         PersonRelation.id == relation_id,
         (PersonRelation.person_id_1 == person_id) | (PersonRelation.person_id_2 == person_id),
@@ -186,6 +207,7 @@ def list_meetings(person_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{person_id}/meetings", response_model=schemas.MeetingBrief, status_code=201)
 def add_meeting(person_id: int, data: schemas.MeetingCreate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
+    _require_person_owner(db, person_id, user)
     m = PersonMeeting(person_id=person_id, description=data.description, met_at=data.met_at)
     db.add(m); db.flush()
     audit_log(db, user["username"], "create", "meeting", m.id, {"person_id": person_id})
@@ -195,6 +217,7 @@ def add_meeting(person_id: int, data: schemas.MeetingCreate, db: Session = Depen
 
 @router.delete("/{person_id}/meetings/{meeting_id}", status_code=204)
 def remove_meeting(person_id: int, meeting_id: int, db: Session = Depends(get_db), user: dict = Depends(require_user)):
+    _require_person_owner(db, person_id, user)
     m = db.query(PersonMeeting).filter(PersonMeeting.id == meeting_id, PersonMeeting.person_id == person_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="相遇记录不存在")

@@ -13,7 +13,7 @@ const SKIP = new Set(['name','icon','description','appTitle','is_public',
   'avatarLabel','importanceLabel','importanceNone','circleTagsLabel','impressionTagsLabel','notesLabel','accountManageLabel'])
 const EXTRA = Object.keys(DEF).filter(k => !SKIP.has(k) && !k.startsWith('settings') && !k.startsWith('images') && !k.startsWith('appName') && !k.startsWith('login') && !k.startsWith('register') && !k.startsWith('username') && !k.startsWith('password') && !k.startsWith('confirmPassword') && !k.startsWith('avatarUpload') && !k.startsWith('changeAvatar') && !k.startsWith('changeUsername'))
 
-const form = ref({ name:'',icon:'',description:'',appTitle:'',is_public:false,
+const form = ref({ name:'',icon:'',description:'',appTitle:'',is_public:false,board_type:'image',
   card_label:'',cards_label:'',group_label:'',groups_label:'',
   homeTitlePrefix:'',countUnit:'',manageSuffix:'',addPrefix:'',searchPrefix:'',
   remarkLabel:'',signatureLabel:'',locationLabel:'',birthdayLabel:'',birthdayPlaceholder:'',
@@ -31,13 +31,14 @@ function loadBoard() {
   const b = boardStore.currentBoard
   if (!b) return
   const fc = typeof b.field_config === 'object' ? b.field_config : {}
-  const boardFields = ['name', 'icon', 'description', 'card_label', 'cards_label', 'group_label', 'groups_label']
+  const boardFields = ['name', 'icon', 'description', 'card_label', 'cards_label', 'group_label', 'groups_label', 'board_type']
   for (const k of boardFields) form.value[k] = (b[k] || '')
   for (const k of EXTRA) form.value[k] = fc[k] || ''
   for (const k of Object.keys(form.value)) {
     if (k !== 'is_public' && form.value[k] === '' && fc[k]) form.value[k] = fc[k]
   }
   form.value.is_public = b.is_public || false
+  if (!form.value.board_type) form.value.board_type = 'image'
 }
 
 function pv(key) { return form.value[key] || DEF[key] || '' }
@@ -47,7 +48,7 @@ async function doSave() {
   try {
     const fc = {}
     for (const k of Object.keys(form.value)) {
-      if (!['name', 'icon', 'description', 'card_label', 'cards_label', 'group_label', 'groups_label', 'is_public'].includes(k)) {
+      if (!['name', 'icon', 'description', 'card_label', 'cards_label', 'group_label', 'groups_label', 'is_public', 'board_type'].includes(k)) {
         if (form.value[k]) fc[k] = form.value[k]
       }
     }
@@ -55,6 +56,7 @@ async function doSave() {
       name: form.value.name, icon: form.value.icon || null, description: form.value.description || null,
       card_label: form.value.card_label, cards_label: form.value.cards_label,
       group_label: form.value.group_label, groups_label: form.value.groups_label,
+      board_type: form.value.board_type,
       field_config: fc, is_public: form.value.is_public,
     })
     message.value = labels.value.saveSuccess
@@ -97,6 +99,14 @@ onMounted(async () => { await boardStore.fetchBoards(); loadBoard() })
           <label class="text-xs text-gray-500 mb-1 block">{{ labels.descriptionLabel }}</label>
           <input v-model="form.description" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
         </div>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">画板类型</label>
+        <select v-model="form.board_type" @change="() => { const td = TYPE_DEFAULTS[form.board_type]; if (td) { if (!form.card_label) form.card_label = td.card_label; if (!form.cards_label) form.cards_label = td.cards_label; if (!form.group_label) form.group_label = td.group_label; if (!form.groups_label) form.groups_label = td.groups_label } }" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none">
+          <option value="image">🖼️ 图组模式</option>
+          <option value="friend">👥 群友模式</option>
+          <option value="shuoshuo">💬 说说模式</option>
+        </select>
       </div>
       <div>
         <label class="text-xs text-gray-500 mb-1 block">{{ labels.appTitleLabel }}</label>

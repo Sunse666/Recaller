@@ -3,7 +3,7 @@ import { useBoardStore } from '../stores/boards'
 
 const DEF = {
   card_label: '图片', cards_label: '图片', group_label: '图组', groups_label: '图组',
-  appTitle: '',  // 动态默认：card_label + '记忆助手'
+  appTitle: '',
 
   // frame words
   homeTitlePrefix: '', countUnit: '张', manageSuffix: '管理',
@@ -107,7 +107,7 @@ export function useLabels(boardRef = null) {
     const b = board || boardStore.currentBoard || {}
     const fc = typeof b.field_config === 'object' ? b.field_config : {}
 
-    const g = (key) => fc[key] || DEF[key]
+    const g = (key) => fc[key] || b[key] || DEF[key]
     const card = g('card_label')
     const cards = g('cards_label')
     const group = g('group_label')

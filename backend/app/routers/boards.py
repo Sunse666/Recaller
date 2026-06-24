@@ -30,16 +30,17 @@ def _board_to_response(b: Board) -> schemas.BoardResponse:
     )
 
 
-def _check_ownership(db: Session, board_id: int, user: dict):
+def _check_ownership(db: Session, board_id: int, user: dict) -> Board:
     board = db.query(Board).get(board_id)
     if not board:
         raise HTTPException(status_code=404, detail="画板不存在")
-    if board.user_id != db.query(Board).get(board_id).user_id:
-        raise HTTPException(status_code=403, detail="无权操作此画板")
     if user["role"] == "admin":
         return board
-    u = db.query(Board).get(board_id)
-    return u
+    from ..models import User
+    u = db.query(User).filter(User.uid == user["uid"]).first()
+    if not u or board.user_id != u.id:
+        raise HTTPException(status_code=403, detail="无权操作此画板")
+    return board
 
 
 @router.get("", response_model=list[schemas.BoardResponse])

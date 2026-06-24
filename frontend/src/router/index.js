@@ -27,12 +27,12 @@ const routes = [
       { path: 'persons', name: 'user-persons', component: () => import('../views/admin/AdminPersonsView.vue') },
       { path: 'settings', name: 'user-settings', component: () => import('../views/admin/AdminSettingsView.vue') },
       { path: 'images', name: 'user-images', component: () => import('../views/admin/AdminImagesView.vue') },
-      { path: ':boardId(\\d+)/:personName', name: 'user-person-detail', component: () => import('../views/PersonDetailView.vue'), props: true },
+      { path: ':boardName/:personName', name: 'user-person-detail', component: () => import('../views/PersonDetailView.vue'), props: true },
     ],
   },
 
   // legacy: global person detail
-  { path: '/:personName', redirect: to => `/1/0/${to.params.personName}` },
+  { path: '/:personName', redirect: to => `/1/default/${to.params.personName}` },
 ]
 
 const router = createRouter({ history: createWebHistory(), routes })

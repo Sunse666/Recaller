@@ -11,7 +11,18 @@ from .. import schemas
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
 
-def _group_to_detail(g: Group) -> schemas.GroupDetail:
+def _require_board_owner(db: Session, board_id: int, user: dict):
+    if user["role"] == "admin":
+        return
+    u = db.query(User).filter(User.uid == user["uid"]).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    board = db.query(Board).filter(Board.id == board_id, Board.user_id == u.id).first()
+    if not board:
+        raise HTTPException(status_code=403, detail="无权操作此画板")
+
+
+def _get_default_board(user: dict, db: Session) -> int | None:
     return schemas.GroupDetail(
         id=g.id, group_number=g.group_number, group_name=g.group_name,
         remark=g.remark, tags=json.loads(g.tags or "[]"), avatar=g.avatar,
@@ -51,9 +62,10 @@ def create_group(data: schemas.GroupCreate, db: Session = Depends(get_db), user:
     bid = data.board_id or _get_default_board(user, db)
     if not bid:
         raise HTTPException(status_code=400, detail="请先创建一个画板")
+    _require_board_owner(db, bid, user)
     existing = db.query(Group).filter(Group.group_number == data.group_number, Group.board_id == bid).first()
     if existing:
-        raise HTTPException(status_code=400, detail="该群号在当前画板中已存在")
+        raise HTTPException(status_code=400, detail="该编号已存在")
     g = Group(
         board_id=bid, group_number=data.group_number, group_name=data.group_name,
         remark=data.remark, tags=json.dumps(data.tags, ensure_ascii=False), avatar=data.avatar,
@@ -69,6 +81,8 @@ def update_group(group_id: int, data: schemas.GroupUpdate, db: Session = Depends
     g = db.query(Group).get(group_id)
     if not g:
         raise HTTPException(status_code=404, detail="分组不存在")
+    if g.board_id:
+        _require_board_owner(db, g.board_id, user)
     changed = {}
     for field, val in data.model_dump(exclude_unset=True).items():
         if field == "tags" and val is not None:
@@ -86,6 +100,8 @@ def delete_group(group_id: int, db: Session = Depends(get_db), user: dict = Depe
     g = db.query(Group).get(group_id)
     if not g:
         raise HTTPException(status_code=404, detail="分组不存在")
+    if g.board_id:
+        _require_board_owner(db, g.board_id, user)
     info = {"name": g.group_name, "number": g.group_number}
     db.delete(g)
     audit_log(db, user["username"], "delete", "group", group_id, info)
@@ -113,6 +129,8 @@ def add_member(group_id: int, data: schemas.MembershipCreate, db: Session = Depe
     g = db.query(Group).get(group_id)
     if not g:
         raise HTTPException(status_code=404, detail="分组不存在")
+    if g.board_id:
+        _require_board_owner(db, g.board_id, user)
     a = db.query(Account).get(data.account_id)
     if not a:
         raise HTTPException(status_code=404, detail="关联账号不存在")
@@ -120,7 +138,7 @@ def add_member(group_id: int, data: schemas.MembershipCreate, db: Session = Depe
         GroupMembership.account_id == data.account_id, GroupMembership.group_id == group_id,
     ).first()
     if existing:
-        raise HTTPException(status_code=400, detail="该账号已在此群中")
+        raise HTTPException(status_code=400, detail="该账号已在此分组中")
     m = GroupMembership(
         account_id=data.account_id, group_id=group_id, group_nickname=data.group_nickname,
         joined_at=data.joined_at, left_at=data.left_at,
@@ -138,6 +156,9 @@ def add_member(group_id: int, data: schemas.MembershipCreate, db: Session = Depe
 
 @router.put("/{group_id}/members/{membership_id}", response_model=schemas.MembershipBrief)
 def update_membership(group_id: int, membership_id: int, data: schemas.MembershipUpdate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
+    g = db.query(Group).get(group_id)
+    if g and g.board_id:
+        _require_board_owner(db, g.board_id, user)
     m = db.query(GroupMembership).filter(
         GroupMembership.id == membership_id, GroupMembership.group_id == group_id,
     ).first()
@@ -158,6 +179,9 @@ def update_membership(group_id: int, membership_id: int, data: schemas.Membershi
 
 @router.delete("/{group_id}/members/{membership_id}", status_code=204)
 def remove_member(group_id: int, membership_id: int, db: Session = Depends(get_db), user: dict = Depends(require_user)):
+    g = db.query(Group).get(group_id)
+    if g and g.board_id:
+        _require_board_owner(db, g.board_id, user)
     m = db.query(GroupMembership).filter(
         GroupMembership.id == membership_id, GroupMembership.group_id == group_id,
     ).first()

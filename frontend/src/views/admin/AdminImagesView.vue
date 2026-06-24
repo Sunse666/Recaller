@@ -19,7 +19,6 @@ async function loadImages() {
   if (!b) { loading.value = false; return }
   const fc = typeof b.field_config === 'object' ? b.field_config : {}
   images.value = (fc.bannerImages || []).map(url => ({ url, type: '图池' }))
-  // 收集所有群友的头像 URL 和卡片背景 URL
   try {
     const persons = await api.listPersons('', boardStore.currentBoardId)
     for (const p of persons) {
@@ -64,7 +63,6 @@ async function copyUrl(url) {
     copied.value = url
     setTimeout(() => { copied.value = '' }, 1500)
   } catch {
-    // fallback
     const el = document.createElement('textarea'); el.value = url; document.body.appendChild(el)
     el.select(); document.execCommand('copy'); document.body.removeChild(el)
     copied.value = url

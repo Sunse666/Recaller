@@ -26,7 +26,7 @@ const T = computed(() => {
 const tl = (key) => key in T.value ? T.value[key] : labels[key]
 
 const persons = ref([])
-const allAccounts = ref({}) // personId -> accounts[]
+const allAccounts = ref({})
 const loading = ref(false)
 const search = ref('')
 
@@ -52,8 +52,7 @@ const form = ref(emptyForm())
 const circleInput = ref('')
 const impressionInput = ref('')
 
-// 账号表单
-const accounts = ref([]) // 当前编辑中的人的所有账号
+const accounts = ref([])
 const accForm = ref({ account_type: 'QQ', account_identifier: '', current_nickname: '', current_avatar: '' })
 const accSaving = ref(false)
 
@@ -74,7 +73,6 @@ async function loadPersons() {
   const boardStore = useBoardStore()
   loading.value = true
   persons.value = await api.listPersons(search.value, boardStore.currentBoardId)
-  // 加载所有人的账号
   for (const p of persons.value) {
     if (!allAccounts.value[p.id]) {
       allAccounts.value[p.id] = await api.listAccounts(p.id)
@@ -141,7 +139,6 @@ async function doDelete(id) {
   loadPersons()
 }
 
-// 账号 CRUD
 async function doAddAccount() {
   if (!accForm.value.account_identifier.trim()) return
   accSaving.value = true

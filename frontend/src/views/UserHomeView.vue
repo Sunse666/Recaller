@@ -25,7 +25,6 @@ async function load() {
   notFound.value = false
 
   if (isOwner) {
-    // 自己：加载自己的画板和人脉
     profileUser.value = { uid: auth.uid, username: auth.username }
     try {
       await boardStore.fetchBoards()
@@ -34,12 +33,10 @@ async function load() {
       }
     } catch { persons.value = [] }
   } else {
-    // 访客：通过 API 获取用户公开信息
     try {
       const data = await api.getUserProfile(profileUid)
       profileUser.value = data
       publicBoards.value = data.boards || []
-      // 加载公开画板的人
       const allPersons = []
       for (const b of publicBoards.value) {
         try {

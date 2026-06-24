@@ -40,7 +40,6 @@ function shuffle(arr) {
   return a
 }
 
-// ── 随机宽度 + 列内向心靠拢（左列右靠、右列左靠、中间居中）──
 const NICE_SCALES = [3/8, 1/2, 5/8, 2/3, 3/4, 7/8, 1, 8/7, 4/3, 3/2, 2]
 
 function calcWidth(aspect) {
@@ -79,7 +78,6 @@ async function computeLayout(personsList) {
 
   const GAP = 0.15
 
-  // 贪心分配到各列（最短列优先）
   const colCards = Array.from({ length: COLS }, () => [])
   const colHeights = Array(COLS).fill(0)
 
@@ -92,7 +90,6 @@ async function computeLayout(personsList) {
     colHeights[minCol] += card.h
   }
 
-  // 列宽 = 列内最宽卡片
   const colWidths = colCards.map(col => col.reduce((m, c) => Math.max(m, c.w), 0))
   const totalW = colWidths.reduce((s, w) => s + w, 0) + GAP * (COLS - 1)
   const baseX = (100 - totalW) / 2
@@ -104,22 +101,20 @@ async function computeLayout(personsList) {
     cx += colWidths[c] + GAP
   }
 
-  // 逐列放置，列内向心靠拢
   const colY = Array(COLS).fill(0)
   const result = []
 
   for (let c = 0; c < COLS; c++) {
     for (const card of colCards[c]) {
-      // 对齐策略：左列→右靠，右列→左靠，中间列→居中
       let offset
       if (COLS === 1) {
-        offset = (colWidths[c] - card.w) / 2  // 居中
+        offset = (colWidths[c] - card.w) / 2
       } else if (c === 0) {
-        offset = colWidths[c] - card.w  // 左列右靠
+        offset = colWidths[c] - card.w
       } else if (c === COLS - 1) {
-        offset = 0  // 右列左靠
+        offset = 0
       } else {
-        offset = (colWidths[c] - card.w) / 2  // 中间列居中
+        offset = (colWidths[c] - card.w) / 2
       }
       result.push({
         person: card.person,
@@ -149,7 +144,7 @@ function onSearch(val) {
 }
 
 function goDetail(p) {
-  router.push(`/1/${p.board_id || 0}/${encodeURIComponent(p.name)}`)
+  router.push(`/1/default/${encodeURIComponent(p.name)}`)
 }
 
 let resizeTimer
@@ -160,7 +155,6 @@ function onResize() {
   }, 300)
 }
 
-// header 下滑收起、上滑显现
 const headerHidden = ref(false)
 const showBackTop = ref(false)
 let lastScrollY = 0

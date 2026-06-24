@@ -3,12 +3,29 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
-from ..models import Person, Account, AccountNicknameHistory, GroupMembership
+from ..models import Person, Account, AccountNicknameHistory, GroupMembership, Board, User
 from ..auth import require_admin, require_user
 from ..audit import log as audit_log
 from .. import schemas
 
 router = APIRouter(prefix="/api/persons/{person_id}/accounts", tags=["accounts"])
+
+
+def _check_person_owner(db: Session, person_id: int, user: dict):
+    p = db.query(Person).get(person_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="条目不存在")
+    if user["role"] == "admin":
+        return p
+    if not p.board_id:
+        return p
+    u = db.query(User).filter(User.uid == user["uid"]).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    board = db.query(Board).filter(Board.id == p.board_id, Board.user_id == u.id).first()
+    if not board:
+        raise HTTPException(status_code=403, detail="无权操作此画板")
+    return p
 
 
 def _account_to_detail(a: Account) -> schemas.AccountDetail:
@@ -27,7 +44,7 @@ def _account_to_detail(a: Account) -> schemas.AccountDetail:
 def list_accounts(person_id: int, db: Session = Depends(get_db)):
     p = db.query(Person).get(person_id)
     if not p:
-        raise HTTPException(status_code=404, detail="群友不存在")
+        raise HTTPException(status_code=404, detail="条目不存在")
     accounts = (
         db.query(Account).options(joinedload(Account.nickname_histories))
         .filter(Account.person_id == person_id).all()
@@ -37,9 +54,7 @@ def list_accounts(person_id: int, db: Session = Depends(get_db)):
 
 @router.post("", response_model=schemas.AccountDetail, status_code=201)
 def create_account(person_id: int, data: schemas.AccountCreate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
-    p = db.query(Person).get(person_id)
-    if not p:
-        raise HTTPException(status_code=404, detail="群友不存在")
+    p = _check_person_owner(db, person_id, user)
     a = Account(
         person_id=person_id, board_id=p.board_id,
         account_type=data.account_type, account_identifier=data.account_identifier,
@@ -53,6 +68,7 @@ def create_account(person_id: int, data: schemas.AccountCreate, db: Session = De
 
 @router.put("/{account_id}", response_model=schemas.AccountDetail)
 def update_account(person_id: int, account_id: int, data: schemas.AccountUpdate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
+    _check_person_owner(db, person_id, user)
     a = db.query(Account).options(joinedload(Account.nickname_histories)).filter(
         Account.id == account_id, Account.person_id == person_id
     ).first()
@@ -69,6 +85,7 @@ def update_account(person_id: int, account_id: int, data: schemas.AccountUpdate,
 
 @router.delete("/{account_id}", status_code=204)
 def delete_account(person_id: int, account_id: int, db: Session = Depends(get_db), user: dict = Depends(require_user)):
+    _check_person_owner(db, person_id, user)
     a = db.query(Account).filter(Account.id == account_id, Account.person_id == person_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="关联账号不存在")
@@ -83,6 +100,7 @@ def add_nickname_history(
     person_id: int, account_id: int, data: schemas.NicknameHistoryCreate,
     db: Session = Depends(get_db), user: dict = Depends(require_user),
 ):
+    _check_person_owner(db, person_id, user)
     a = db.query(Account).filter(Account.id == account_id, Account.person_id == person_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="关联账号不存在")
@@ -98,6 +116,7 @@ def remove_nickname_history(
     person_id: int, account_id: int, history_id: int,
     db: Session = Depends(get_db), user: dict = Depends(require_user),
 ):
+    _check_person_owner(db, person_id, user)
     h = db.query(AccountNicknameHistory).join(Account).filter(
         AccountNicknameHistory.id == history_id,
         AccountNicknameHistory.account_id == account_id,
