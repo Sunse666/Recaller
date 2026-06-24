@@ -7,20 +7,53 @@ const routes = [
     component: () => import('../views/HomeView.vue'),
   },
   {
+    path: '/login',
+    name: 'login',
+    component: () => import('../views/admin/LoginView.vue'),
+  },
+  {
+    path: '/register',
+    name: 'register',
+    component: () => import('../views/admin/RegisterView.vue'),
+  },
+  // user profile + management
+  {
+    path: '/:uid(\\d+)',
+    component: () => import('../views/UserHomeView.vue'),
+    children: [
+      {
+        path: '',
+        name: 'user-home',
+      },
+      {
+        path: 'persons',
+        name: 'user-persons',
+        component: () => import('../views/admin/UserPersonsView.vue'),
+      },
+      {
+        path: 'groups',
+        name: 'user-groups',
+        component: () => import('../views/admin/AdminGroupsView.vue'),
+      },
+      {
+        path: 'settings',
+        name: 'user-settings',
+        component: () => import('../views/admin/AdminSettingsView.vue'),
+      },
+    ],
+  },
+  // person detail
+  {
     path: '/:personName',
     name: 'person-detail',
     component: () => import('../views/PersonDetailView.vue'),
     props: true,
   },
-  {
-    path: '/admin/login',
-    name: 'admin-login',
-    component: () => import('../views/admin/LoginView.vue'),
-  },
+  // admin superuser
   {
     path: '/admin',
     component: () => import('../views/admin/AdminLayout.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, requiresAdmin: true },
     children: [
       {
         path: '',
@@ -36,6 +69,11 @@ const routes = [
         name: 'admin-groups',
         component: () => import('../views/admin/AdminGroupsView.vue'),
       },
+      {
+        path: 'settings',
+        name: 'admin-settings',
+        component: () => import('../views/admin/AdminSettingsView.vue'),
+      },
     ],
   },
 ]
@@ -46,18 +84,27 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
+  let username = localStorage.getItem('username')
+  let role = localStorage.getItem('role')
+
+  if (username && !role) {
+    localStorage.removeItem('username')
+    username = ''
+  }
+
+  const uid = localStorage.getItem('uid')
+
   if (to.meta.requiresAuth) {
-    const username = localStorage.getItem('username')
-    if (!username) {
-      return next('/admin/login')
-    }
+    if (!username) return next('/login')
+    if (to.meta.requiresAdmin && role !== 'admin') return next('/')
   }
-  if (to.path === '/admin/login') {
-    const username = localStorage.getItem('username')
+
+  if (to.path === '/login' || to.path === '/register') {
     if (username) {
-      return next('/admin/persons')
+      return next(role === 'admin' ? '/admin/persons' : `/${uid || ''}`)
     }
   }
+
   next()
 })
 

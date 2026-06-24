@@ -2,15 +2,17 @@ import datetime
 import re
 import time
 import secrets
+import string
 from fastapi import HTTPException, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from .models import AdminUser
+from .models import User, AuthToken
+from .database import SessionLocal
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-TOKENS: dict[str, dict] = {}
 
+_UID_ALPHABET = string.ascii_letters + string.digits + "-_"
 _LOGIN_ATTEMPTS: dict[str, list[float]] = {}
 _MAX_LOGIN_ATTEMPTS = 5
 _LOGIN_WINDOW = 60
@@ -24,6 +26,9 @@ def check_login_rate(ip: str) -> bool:
     attempts.append(now)
     return True
 
+def generate_uid(size=21) -> str:
+    return "".join(secrets.choice(_UID_ALPHABET) for _ in range(size))
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -31,7 +36,6 @@ def verify_password(password: str, hashed: str) -> bool:
     return pwd_context.verify(password, hashed)
 
 def validate_password_strength(password: str) -> str | None:
-    """Return error message if password is too weak, else None."""
     if len(password) < 8:
         return "密码长度不能少于8位"
     if len(password) > 128:
@@ -42,60 +46,87 @@ def validate_password_strength(password: str) -> str | None:
         return "密码必须包含至少一个数字"
     return None
 
-def _cleanup_expired():
+def _cleanup_expired(db: Session):
     now = datetime.datetime.now(datetime.timezone.utc)
-    expired = [t for t, e in TOKENS.items() if e["expires_at"] < now]
-    for t in expired:
-        del TOKENS[t]
-
-def create_token(username: str) -> str:
-    _cleanup_expired()
-    token = secrets.token_urlsafe(32)
-    TOKENS[token] = {
-        "username": username,
-        "expires_at": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24),
-    }
-    return token
-
-def verify_token(token: str) -> str | None:
-    entry = TOKENS.get(token)
-    if not entry:
-        return None
-    if entry["expires_at"] < datetime.datetime.now(datetime.timezone.utc):
-        del TOKENS[token]
-        return None
-    return entry["username"]
-
-def revoke_token(token: str):
-    TOKENS.pop(token, None)
-
-def revoke_user_tokens(username: str):
-    for t in [t for t, e in TOKENS.items() if e["username"] == username]:
-        del TOKENS[t]
-
-def create_admin_user(db: Session, username: str, password: str):
-    existing = db.query(AdminUser).filter(AdminUser.username == username).first()
-    if existing:
-        raise ValueError(f"管理员 {username} 已存在")
-    admin = AdminUser(username=username, password_hash=hash_password(password))
-    db.add(admin)
+    db.query(AuthToken).filter(AuthToken.expires_at < now).delete()
     db.commit()
 
-def authenticate_admin(db: Session, username: str, password: str) -> str | None:
-    admin = db.query(AdminUser).filter(AdminUser.username == username).first()
-    if not admin or not verify_password(password, admin.password_hash):
-        return None
-    return create_token(username)
+def create_token(db: Session, uid: str, username: str, role: str) -> str:
+    _cleanup_expired(db)
+    token = secrets.token_urlsafe(32)
+    entry = AuthToken(
+        token=token,
+        uid=uid,
+        username=username,
+        role=role,
+        expires_at=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24),
+    )
+    db.add(entry)
+    db.commit()
+    return token
 
-def change_admin_password(db: Session, username: str, old_password: str, new_password: str) -> str | None:
-    """Change admin password. Returns error message or None on success."""
-    admin = db.query(AdminUser).filter(AdminUser.username == username).first()
-    if not admin or not verify_password(old_password, admin.password_hash):
+def verify_token_full(token: str) -> dict | None:
+    db = SessionLocal()
+    try:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        entry = db.query(AuthToken).filter(
+            AuthToken.token == token,
+            AuthToken.expires_at > now,
+        ).first()
+        if not entry:
+            return None
+        return {"uid": entry.uid, "username": entry.username, "role": entry.role}
+    finally:
+        db.close()
+
+def revoke_token(token: str):
+    db = SessionLocal()
+    try:
+        db.query(AuthToken).filter(AuthToken.token == token).delete()
+        db.commit()
+    finally:
+        db.close()
+
+def revoke_user_tokens(username: str):
+    db = SessionLocal()
+    try:
+        db.query(AuthToken).filter(AuthToken.username == username).delete()
+        db.commit()
+    finally:
+        db.close()
+
+def create_user(db: Session, username: str, password: str, role: str = "user") -> User:
+    existing = db.query(User).filter(User.username == username).first()
+    if existing:
+        raise ValueError(f"用户名 {username} 已存在")
+    user = User(
+        uid="0",
+        username=username,
+        password_hash=hash_password(password),
+        role=role,
+    )
+    db.add(user)
+    db.flush()
+    user.uid = str(user.id)
+    db.commit()
+    db.refresh(user)
+    return user
+
+def authenticate_user(db: Session, username: str, password: str) -> dict | None:
+    u = db.query(User).filter(User.username == username).first()
+    if not u or not verify_password(password, u.password_hash):
+        return None
+    token = create_token(db, u.uid, u.username, u.role)
+    return {"token": token, "uid": u.uid, "username": u.username, "role": u.role}
+
+def change_user_password(db: Session, username: str, old_password: str, new_password: str) -> str | None:
+    u = db.query(User).filter(User.username == username).first()
+    if not u or not verify_password(old_password, u.password_hash):
         return "原密码错误"
-    strength_err = validate_password_strength(new_password)
-    if strength_err:
-        return strength_err
-    admin.password_hash = hash_password(new_password)
+    err = validate_password_strength(new_password)
+    if err:
+        return err
+    u.password_hash = hash_password(new_password)
     revoke_user_tokens(username)
     db.commit()
     return None
@@ -115,11 +146,36 @@ def get_token_from_request(request: Request) -> str | None:
 def require_admin(
     request: Request,
     creds: HTTPAuthorizationCredentials | None = Depends(security),
-) -> str:
+) -> dict:
     token = get_token_from_request(request)
     if not token:
         raise HTTPException(status_code=401, detail="未登录或令牌已过期")
-    username = verify_token(token)
-    if not username:
+    entry = verify_token_full(token)
+    if not entry:
         raise HTTPException(status_code=401, detail="未登录或令牌已过期")
-    return username
+    if entry["role"] != "admin":
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    return entry
+
+
+def require_user(
+    request: Request,
+    creds: HTTPAuthorizationCredentials | None = Depends(security),
+) -> dict:
+    token = get_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="未登录或令牌已过期")
+    entry = verify_token_full(token)
+    if not entry:
+        raise HTTPException(status_code=401, detail="未登录或令牌已过期")
+    return entry
+
+
+def optional_user(
+    request: Request,
+    creds: HTTPAuthorizationCredentials | None = Depends(security),
+) -> dict | None:
+    token = get_token_from_request(request)
+    if not token:
+        return None
+    return verify_token_full(token)

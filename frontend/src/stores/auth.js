@@ -1,48 +1,57 @@
 import { defineStore } from 'pinia'
+import { api } from '../api/client'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     username: localStorage.getItem('username') || '',
+    role: localStorage.getItem('role') || '',
+    uid: localStorage.getItem('uid') || '',
   }),
   getters: {
     isLoggedIn: (state) => !!state.username,
+    isAdmin: (state) => state.role === 'admin',
   },
   actions: {
     async login(username, password) {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ username, password }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: '登录失败' }))
-        throw new Error(err.detail || '登录失败')
-      }
-      const data = await res.json()
+      const data = await api.login(username, password)
       this.username = data.username
+      this.role = data.role || ''
+      this.uid = data.uid || ''
       localStorage.setItem('username', data.username)
+      localStorage.setItem('role', data.role || '')
+      localStorage.setItem('uid', data.uid || '')
+    },
+    async register(username, password) {
+      await api.register(username, password)
     },
     async checkAuth() {
       try {
-        const res = await fetch('/api/auth/me', { credentials: 'same-origin' })
-        if (res.ok) {
-          const data = await res.json()
-          this.username = data.username
-          localStorage.setItem('username', data.username)
-          return true
-        }
-      } catch {}
-      this.username = ''
-      localStorage.removeItem('username')
-      return false
+        const data = await api.me()
+        this.username = data.username
+        this.role = data.role || ''
+        this.uid = data.uid || ''
+        localStorage.setItem('username', data.username)
+        localStorage.setItem('role', data.role || '')
+        localStorage.setItem('uid', data.uid || '')
+        return true
+      } catch {
+        this.username = ''
+        this.role = ''
+        this.uid = ''
+        localStorage.removeItem('username')
+        localStorage.removeItem('role')
+        localStorage.removeItem('uid')
+        return false
+      }
     },
     async logout() {
-      try {
-        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
-      } catch {}
+      try { await api.logout() } catch {}
       this.username = ''
+      this.role = ''
+      this.uid = ''
       localStorage.removeItem('username')
+      localStorage.removeItem('role')
+      localStorage.removeItem('uid')
     },
   },
 })

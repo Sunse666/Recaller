@@ -3,50 +3,59 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
-from ..models import Person, Account, PersonRelation, PersonMeeting, GroupMembership
-from ..auth import require_admin
+from ..models import Person, Account, PersonRelation, PersonMeeting, Board, User
+from ..auth import require_admin, require_user, optional_user
 from ..encryption import encrypt, decrypt
 from ..audit import log as audit_log
 from .. import schemas
 
 router = APIRouter(prefix="/api/persons", tags=["persons"])
 
+
+def _get_board_id(user: dict, db: Session, board_id: int | None = None) -> int | None:
+    if board_id:
+        return board_id
+    u = db.query(User).filter(User.uid == user["uid"]).first()
+    if not u:
+        return None
+    board = db.query(Board).filter(Board.user_id == u.id).order_by(Board.sort_order).first()
+    return board.id if board else None
+
+
 def _person_to_brief(p: Person) -> schemas.PersonBrief:
     return schemas.PersonBrief(
-        id=p.id,
-        name=p.name,
-        remark=p.remark,
-        signature=p.signature,
+        id=p.id, name=p.name, remark=p.remark, signature=p.signature,
         avatar=p.avatar,
         circle_tags=json.loads(p.circle_tags or "[]"),
         impression_tags=json.loads(p.impression_tags or "[]"),
         importance=p.importance,
         account_count=len(p.accounts) if p.accounts else 0,
+        board_id=p.board_id,
     )
+
 
 def _person_to_detail(p: Person) -> schemas.PersonDetail:
     return schemas.PersonDetail(
-        id=p.id,
-        name=p.name,
-        remark=p.remark,
-        signature=p.signature,
-        location=p.location,
-        avatar=p.avatar,
+        id=p.id, name=p.name, remark=p.remark, signature=p.signature,
+        location=p.location, avatar=p.avatar,
         circle_tags=json.loads(p.circle_tags or "[]"),
         impression_tags=json.loads(p.impression_tags or "[]"),
-        importance=p.importance,
-        notes=decrypt(p.notes),
-        birthday=p.birthday,
-        created_at=p.created_at,
-        updated_at=p.updated_at,
+        importance=p.importance, notes=decrypt(p.notes), birthday=p.birthday,
+        board_id=p.board_id,
+        created_at=p.created_at, updated_at=p.updated_at,
     )
+
 
 @router.get("", response_model=list[schemas.PersonBrief])
 def list_persons(
-    search: str = Query(default="", description="搜索昵称、备注、账号"),
+    search: str = Query(default=""),
+    board_id: int = Query(default=None),
     db: Session = Depends(get_db),
+    user: dict | None = Depends(optional_user),
 ):
     query = db.query(Person).options(joinedload(Person.accounts))
+    if board_id:
+        query = query.filter(Person.board_id == board_id)
     if search:
         like = f"%{search}%"
         query = query.outerjoin(Person.accounts).filter(
@@ -55,8 +64,22 @@ def list_persons(
             | (Account.account_identifier.ilike(like))
             | (Account.current_nickname.ilike(like))
         ).distinct()
+
+    if user is None:
+        public_ids = [b.id for b in db.query(Board).filter(Board.is_public == True).all()]
+        query = query.filter(Person.board_id.in_(public_ids))
+    elif user["role"] != "admin":
+        u = db.query(User).filter(User.uid == user["uid"]).first()
+        if u:
+            own_ids = [b.id for b in db.query(Board).filter(Board.user_id == u.id).all()]
+            if own_ids:
+                query = query.filter(Person.board_id.in_(own_ids))
+            else:
+                return []
+
     persons = query.order_by(Person.importance.desc(), Person.name).all()
     return [_person_to_brief(p) for p in persons]
+
 
 @router.get("/{person_id}", response_model=schemas.PersonDetail)
 def get_person(person_id: int, db: Session = Depends(get_db)):
@@ -65,70 +88,67 @@ def get_person(person_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="群友不存在")
     return _person_to_detail(p)
 
+
 @router.post("", response_model=schemas.PersonDetail, status_code=201)
-def create_person(data: schemas.PersonCreate, db: Session = Depends(get_db), user: str = Depends(require_admin)):
+def create_person(data: schemas.PersonCreate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
+    bid = data.board_id or _get_board_id(user, db, None)
+    if not bid:
+        raise HTTPException(status_code=400, detail="请先创建一个画板")
     p = Person(
-        name=data.name,
-        remark=data.remark,
-        signature=data.signature,
-        location=data.location,
-        avatar=data.avatar,
+        board_id=bid, name=data.name, remark=data.remark,
+        signature=data.signature, location=data.location, avatar=data.avatar,
         circle_tags=json.dumps(data.circle_tags, ensure_ascii=False),
         impression_tags=json.dumps(data.impression_tags, ensure_ascii=False),
-        importance=data.importance,
-        notes=encrypt(data.notes),
-        birthday=data.birthday,
+        importance=data.importance, notes=encrypt(data.notes), birthday=data.birthday,
     )
-    db.add(p)
-    db.flush()
-    audit_log(db, user, "create", "person", p.id, {"name": data.name})
-    db.commit()
-    db.refresh(p)
+    db.add(p); db.flush()
+    audit_log(db, user["username"], "create", "person", p.id, {"name": data.name, "board_id": bid})
+    db.commit(); db.refresh(p)
     return _person_to_detail(p)
 
+
 @router.put("/{person_id}", response_model=schemas.PersonDetail)
-def update_person(person_id: int, data: schemas.PersonUpdate, db: Session = Depends(get_db), user: str = Depends(require_admin)):
+def update_person(person_id: int, data: schemas.PersonUpdate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
     p = db.query(Person).get(person_id)
     if not p:
         raise HTTPException(status_code=404, detail="群友不存在")
     changed = {}
     for field, val in data.model_dump(exclude_unset=True).items():
         if field == "notes" and val is not None:
-            setattr(p, field, encrypt(val))
-            changed[field] = True
+            setattr(p, field, encrypt(val)); changed[field] = True
         elif field in ("circle_tags", "impression_tags") and val is not None:
-            setattr(p, field, json.dumps(val, ensure_ascii=False))
-            changed[field] = True
+            setattr(p, field, json.dumps(val, ensure_ascii=False)); changed[field] = True
         elif val is not None:
-            setattr(p, field, val)
-            changed[field] = True
+            setattr(p, field, val); changed[field] = True
     if changed:
-        audit_log(db, user, "update", "person", person_id, {"changed_fields": list(changed.keys())})
-    db.commit()
-    db.refresh(p)
+        audit_log(db, user["username"], "update", "person", person_id, {"changed_fields": list(changed.keys())})
+    db.commit(); db.refresh(p)
     return _person_to_detail(p)
 
+
 @router.delete("/{person_id}", status_code=204)
-def delete_person(person_id: int, db: Session = Depends(get_db), user: str = Depends(require_admin)):
+def delete_person(person_id: int, db: Session = Depends(get_db), user: dict = Depends(require_user)):
     p = db.query(Person).get(person_id)
     if not p:
         raise HTTPException(status_code=404, detail="群友不存在")
     name = p.name
     db.delete(p)
-    audit_log(db, user, "delete", "person", person_id, {"name": name})
+    audit_log(db, user["username"], "delete", "person", person_id, {"name": name})
     db.commit()
+
 
 @router.get("/{person_id}/relations", response_model=list[schemas.RelationBrief])
 def list_relations(person_id: int, db: Session = Depends(get_db)):
     p = db.query(Person).get(person_id)
     if not p:
         raise HTTPException(status_code=404, detail="群友不存在")
-    outgoing = db.query(PersonRelation).filter(PersonRelation.person_id_1 == person_id).all()
-    incoming = db.query(PersonRelation).filter(PersonRelation.person_id_2 == person_id).all()
-    return outgoing + incoming
+    o = db.query(PersonRelation).filter(PersonRelation.person_id_1 == person_id).all()
+    i = db.query(PersonRelation).filter(PersonRelation.person_id_2 == person_id).all()
+    return o + i
+
 
 @router.post("/{person_id}/relations", response_model=schemas.RelationBrief, status_code=201)
-def add_relation(person_id: int, data: schemas.RelationCreate, db: Session = Depends(get_db), user: str = Depends(require_admin)):
+def add_relation(person_id: int, data: schemas.RelationCreate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
     if data.person_id_2 == person_id:
         raise HTTPException(status_code=400, detail="不能和自己建立关系")
     exists = db.query(PersonRelation).filter(
@@ -137,15 +157,14 @@ def add_relation(person_id: int, data: schemas.RelationCreate, db: Session = Dep
     if exists:
         raise HTTPException(status_code=400, detail="关系已存在")
     rel = PersonRelation(person_id_1=person_id, person_id_2=data.person_id_2, relation_type=data.relation_type)
-    db.add(rel)
-    db.flush()
-    audit_log(db, user, "create", "relation", rel.id, {"person_id_1": person_id, "person_id_2": data.person_id_2, "type": data.relation_type})
-    db.commit()
-    db.refresh(rel)
+    db.add(rel); db.flush()
+    audit_log(db, user["username"], "create", "relation", rel.id, {"p1": person_id, "p2": data.person_id_2})
+    db.commit(); db.refresh(rel)
     return rel
 
+
 @router.delete("/{person_id}/relations/{relation_id}", status_code=204)
-def remove_relation(person_id: int, relation_id: int, db: Session = Depends(get_db), user: str = Depends(require_admin)):
+def remove_relation(person_id: int, relation_id: int, db: Session = Depends(get_db), user: dict = Depends(require_user)):
     rel = db.query(PersonRelation).filter(
         PersonRelation.id == relation_id,
         (PersonRelation.person_id_1 == person_id) | (PersonRelation.person_id_2 == person_id),
@@ -153,30 +172,29 @@ def remove_relation(person_id: int, relation_id: int, db: Session = Depends(get_
     if not rel:
         raise HTTPException(status_code=404, detail="关系不存在")
     db.delete(rel)
-    audit_log(db, user, "delete", "relation", relation_id, {"person_id_1": rel.person_id_1, "person_id_2": rel.person_id_2})
+    audit_log(db, user["username"], "delete", "relation", relation_id, {"p1": rel.person_id_1, "p2": rel.person_id_2})
     db.commit()
+
 
 @router.get("/{person_id}/meetings", response_model=list[schemas.MeetingBrief])
 def list_meetings(person_id: int, db: Session = Depends(get_db)):
     return db.query(PersonMeeting).filter(PersonMeeting.person_id == person_id).all()
 
+
 @router.post("/{person_id}/meetings", response_model=schemas.MeetingBrief, status_code=201)
-def add_meeting(person_id: int, data: schemas.MeetingCreate, db: Session = Depends(get_db), user: str = Depends(require_admin)):
+def add_meeting(person_id: int, data: schemas.MeetingCreate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
     m = PersonMeeting(person_id=person_id, description=data.description, met_at=data.met_at)
-    db.add(m)
-    db.flush()
-    audit_log(db, user, "create", "meeting", m.id, {"person_id": person_id, "description": data.description[:100]})
-    db.commit()
-    db.refresh(m)
+    db.add(m); db.flush()
+    audit_log(db, user["username"], "create", "meeting", m.id, {"person_id": person_id})
+    db.commit(); db.refresh(m)
     return m
 
+
 @router.delete("/{person_id}/meetings/{meeting_id}", status_code=204)
-def remove_meeting(person_id: int, meeting_id: int, db: Session = Depends(get_db), user: str = Depends(require_admin)):
-    m = db.query(PersonMeeting).filter(
-        PersonMeeting.id == meeting_id, PersonMeeting.person_id == person_id
-    ).first()
+def remove_meeting(person_id: int, meeting_id: int, db: Session = Depends(get_db), user: dict = Depends(require_user)):
+    m = db.query(PersonMeeting).filter(PersonMeeting.id == meeting_id, PersonMeeting.person_id == person_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="相遇记录不存在")
     db.delete(m)
-    audit_log(db, user, "delete", "meeting", meeting_id, {"person_id": person_id})
+    audit_log(db, user["username"], "delete", "meeting", meeting_id, {"person_id": person_id})
     db.commit()

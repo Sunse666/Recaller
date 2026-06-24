@@ -1,7 +1,8 @@
 const BASE = '/api'
 
 async function request(url, options = {}) {
-  const headers = { 'Content-Type': 'application/json', ...options.headers }
+  const isUpload = options.headers && options.headers[''] === undefined
+  const headers = isUpload ? { ...options.headers } : { 'Content-Type': 'application/json', ...options.headers }
   const res = await fetch(`${BASE}${url}`, {
     headers,
     credentials: 'same-origin',
@@ -16,9 +17,41 @@ async function request(url, options = {}) {
 }
 
 export const api = {
+  // auth
+  login(username, password) {
+    return request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) })
+  },
+  register(username, password) {
+    return request('/auth/register', { method: 'POST', body: JSON.stringify({ username, password }) })
+  },
+  me() { return request('/auth/me') },
+  logout() { return request('/auth/logout', { method: 'POST' }) },
+  changePassword(old_password, new_password) {
+    return request('/auth/change-password', { method: 'POST', body: JSON.stringify({ old_password, new_password }) })
+  },
+
+  // upload
+  upload(file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request('/upload', { method: 'POST', body: formData, headers: {} })
+  },
+
+  // users
+  getUserProfile(uid) { return request(`/users/${uid}`) },
+
+  // boards
+  listBoards() { return request('/boards') },
+  getDefaultBoard() { return request('/boards/default') },
+  createBoard(data) { return request('/boards', { method: 'POST', body: JSON.stringify(data) }) },
+  updateBoard(id, data) { return request(`/boards/${id}`, { method: 'PUT', body: JSON.stringify(data) }) },
+  deleteBoard(id) { return request(`/boards/${id}`, { method: 'DELETE' }) },
+
   // persons
-  listPersons(search = '') {
-    return request(`/persons?search=${encodeURIComponent(search)}`)
+  listPersons(search = '', boardId = null) {
+    let url = `/persons?search=${encodeURIComponent(search)}`
+    if (boardId) url += `&board_id=${boardId}`
+    return request(url)
   },
   getPerson(id) { return request(`/persons/${id}`) },
   createPerson(data) { return request('/persons', { method: 'POST', body: JSON.stringify(data) }) },
@@ -36,9 +69,15 @@ export const api = {
   updateMembership(groupId, membershipId, data) { return request(`/groups/${groupId}/members/${membershipId}`, { method: 'PUT', body: JSON.stringify(data) }) },
 
   // groups
-  listGroups(search = '') { return request(`/groups?search=${encodeURIComponent(search)}`) },
+  listGroups(search = '', boardId = null) {
+    let url = `/groups?search=${encodeURIComponent(search)}`
+    if (boardId) url += `&board_id=${boardId}`
+    return request(url)
+  },
   getGroup(id) { return request(`/groups/${id}`) },
   createGroup(data) { return request('/groups', { method: 'POST', body: JSON.stringify(data) }) },
+  updateGroup(id, data) { return request(`/groups/${id}`, { method: 'PUT', body: JSON.stringify(data) }) },
+  deleteGroup(id) { return request(`/groups/${id}`, { method: 'DELETE' }) },
   getGroupMembers(groupId) { return request(`/groups/${groupId}/members`) },
   addGroupMember(groupId, data) { return request(`/groups/${groupId}/members`, { method: 'POST', body: JSON.stringify(data) }) },
   updateGroupMember(groupId, membershipId, data) { return request(`/groups/${groupId}/members/${membershipId}`, { method: 'PUT', body: JSON.stringify(data) }) },

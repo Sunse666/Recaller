@@ -2,10 +2,14 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client'
+import { useAuthStore } from '../stores/auth'
+import { useLabels } from '../utils/labels'
 import SearchBar from '../components/SearchBar.vue'
 import PersonCard from '../components/PersonCard.vue'
 
 const router = useRouter()
+const auth = useAuthStore()
+const labels = useLabels()
 const persons = ref([])
 const loading = ref(true)
 const search = ref('')
@@ -36,6 +40,7 @@ function shuffle(arr) {
   return a
 }
 
+// ── 随机宽度 + 列内向心靠拢（左列右靠、右列左靠、中间居中）──
 const NICE_SCALES = [3/8, 1/2, 5/8, 2/3, 3/4, 7/8, 1, 8/7, 4/3, 3/2, 2]
 
 function calcWidth(aspect) {
@@ -51,7 +56,6 @@ function calcWidth(aspect) {
   return Math.max(22.5, Math.min(26, raw * best))
 }
 
-// ── 三固定列 + 列内最矮优先堆叠 ──
 const places = ref([])
 
 async function computeLayout(personsList) {
@@ -75,7 +79,7 @@ async function computeLayout(personsList) {
 
   const GAP = 0.15
 
-  // 贪心分配到各列（最短列优先），记录每列卡片
+  // 贪心分配到各列（最短列优先）
   const colCards = Array.from({ length: COLS }, () => [])
   const colHeights = Array(COLS).fill(0)
 
@@ -100,16 +104,27 @@ async function computeLayout(personsList) {
     cx += colWidths[c] + GAP
   }
 
-  // 逐列放置，列内竖直堆叠，卡片左对齐
+  // 逐列放置，列内向心靠拢
   const colY = Array(COLS).fill(0)
   const result = []
 
   for (let c = 0; c < COLS; c++) {
     for (const card of colCards[c]) {
+      // 对齐策略：左列→右靠，右列→左靠，中间列→居中
+      let offset
+      if (COLS === 1) {
+        offset = (colWidths[c] - card.w) / 2  // 居中
+      } else if (c === 0) {
+        offset = colWidths[c] - card.w  // 左列右靠
+      } else if (c === COLS - 1) {
+        offset = 0  // 右列左靠
+      } else {
+        offset = (colWidths[c] - card.w) / 2  // 中间列居中
+      }
       result.push({
         person: card.person,
         image: card.image,
-        x: colX[c],
+        x: colX[c] + offset,
         y: colY[c],
         w: card.w,
         h: card.h,
@@ -145,6 +160,29 @@ function onResize() {
   }, 300)
 }
 
+// header 下滑收起、上滑显现
+const headerHidden = ref(false)
+const showBackTop = ref(false)
+let lastScrollY = 0
+function onScroll() {
+  const y = window.scrollY
+  if (y < 10) {
+    headerHidden.value = false
+    showBackTop.value = false
+  } else if (y > lastScrollY + 5) {
+    headerHidden.value = true
+    showBackTop.value = true
+  } else if (y < lastScrollY - 5) {
+    headerHidden.value = false
+    showBackTop.value = true
+  }
+  lastScrollY = y
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
 function containerHeight() {
   let maxBtm = 0
   for (const p of places.value) {
@@ -156,43 +194,61 @@ function containerHeight() {
 onMounted(() => {
   loadPersons()
   window.addEventListener('resize', onResize)
+  window.addEventListener('scroll', onScroll, { passive: true })
 })
 </script>
 
 <template>
-  <div class="min-h-screen bg-zinc-900">
-    <header class="sticky top-0 z-20 backdrop-blur-xl bg-zinc-900/80 border-b border-zinc-800">
-      <div class="px-4 py-4 flex items-center gap-6">
-        <div class="flex items-center gap-3 shrink-0">
-          <h1 class="text-lg font-bold text-white">群友记忆助手</h1>
+  <div class="min-h-screen bg-white relative">
+    <div class="absolute top-0 left-0 w-full overflow-hidden pointer-events-none z-0">
+      <div class="absolute -top-40 -left-20 w-80 h-80 rounded-full bg-pink-200/20 blur-3xl" />
+      <div class="absolute -top-20 right-10 w-64 h-64 rounded-full bg-blue-200/20 blur-3xl" />
+      <div class="absolute top-20 left-1/2 -translate-x-1/2 w-96 h-40 rounded-full bg-pink-100/30 blur-3xl" />
+    </div>
+
+    <header
+      class="sticky top-3 z-20 mx-4 rounded-2xl backdrop-blur-xl bg-white/95 border border-pink-100 shadow-sm transition-all duration-300"
+      :class="{ '-translate-y-[calc(100%+1rem)] opacity-0': headerHidden }"
+    >
+      <div class="px-5 py-3.5 flex items-center">
+        <h1 class="text-lg font-bold text-primary shrink-0">{{ labels.appTitle }}</h1>
+        <div class="flex-1 flex justify-center px-4">
+          <SearchBar @search="onSearch" class="w-full max-w-md" />
         </div>
-        <SearchBar @search="onSearch" class="flex-1 max-w-md" />
+        <router-link v-if="auth.isLoggedIn" :to="`/${auth.uid}`" class="shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center text-white text-sm font-bold shadow-sm hover:shadow-md transition">
+          {{ auth.username[0].toUpperCase() }}
+        </router-link>
+        <router-link v-else to="/login" class="shrink-0 text-sm text-gray-400 hover:text-primary transition">{{ labels.homeLogin }}</router-link>
       </div>
     </header>
 
-    <main class="px-0 py-8">
+    <main class="relative z-10 px-0 py-8">
       <div class="mb-8 px-2">
-        <h2 class="text-2xl font-bold text-white">
-          {{ search ? `搜索「${search}」` : '我认识的群友们' }}
+        <h2 class="text-2xl font-bold text-gray-900">
+          {{ search ? `搜索「${search}」` : labels.homeTitle }}
         </h2>
-        <p class="text-zinc-500 mt-1 text-sm">{{ persons.length }} 位群友</p>
+        <p class="text-primary/70 mt-1 text-sm">{{ labels.homeCount(persons.length) }}</p>
       </div>
 
-      <div v-if="loading" class="text-center text-zinc-500 py-20">
-        <div class="w-10 h-10 mx-auto mb-4 rounded-full border-2 border-zinc-700 border-t-white animate-spin" />
-        加载中...
+      <div v-if="loading" class="px-2">
+        <div class="flex gap-2">
+          <div v-for="col in 3" :key="col" class="flex-1 space-y-2" :class="{ 'hidden md:block': col > 1, 'hidden lg:block': col > 2 }">
+            <div v-for="i in 4" :key="i" class="rounded-xl bg-gradient-to-br from-pink-100 to-blue-50 animate-pulse" :style="{ height: (140 + Math.random() * 120) + 'px' }" />
+          </div>
+        </div>
       </div>
-      <div v-else-if="!places.length" class="text-center text-zinc-500 py-20">
+
+      <div v-else-if="!places.length" class="text-center text-gray-400 py-20">
         <div class="text-5xl mb-4">🫥</div>
-        <p class="text-lg text-zinc-400">还没有添加群友</p>
-        <p class="text-sm mt-1">去后台管理页面添加第一位群友吧</p>
+        <p class="text-lg text-gray-500">{{ labels.emptyHome }}</p>
+        <p class="text-sm mt-1">{{ labels.emptyHomeHint }}</p>
       </div>
 
       <div v-else class="relative w-full" :style="{ height: containerHeight() }">
         <div
           v-for="item in places"
           :key="item.person.id"
-          class="absolute"
+          class="absolute transition-transform duration-300 hover:scale-[1.02] hover:z-10"
           :style="{
             left: item.x + 'vw',
             top: item.y + 'vw',
@@ -207,5 +263,15 @@ onMounted(() => {
         </div>
       </div>
     </main>
+
+    <Transition name="fab">
+      <button
+        v-if="showBackTop"
+        @click="scrollToTop"
+        class="fixed bottom-6 right-6 z-30 w-11 h-11 rounded-full bg-primary text-white shadow-lg hover:bg-primary-dark hover:shadow-xl transition-all duration-300 flex items-center justify-center text-lg"
+      >
+        ↑
+      </button>
+    </Transition>
   </div>
 </template>

@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -7,10 +7,45 @@ from .database import Base
 def _utcnow():
     return datetime.datetime.now(datetime.timezone.utc)
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uid = Column(String(21), unique=True, nullable=False, index=True)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    password_hash = Column(String(200), nullable=False)
+    role = Column(String(10), nullable=False, default="user")
+    created_at = Column(DateTime, default=_utcnow)
+
+    boards = relationship("Board", back_populates="user", cascade="all, delete-orphan")
+
+class Board(Base):
+    __tablename__ = "boards"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    icon = Column(String(10), nullable=True)
+    description = Column(String(200), nullable=True)
+    card_label = Column(String(50), nullable=False, default="群友")
+    cards_label = Column(String(50), nullable=False, default="群友们")
+    group_label = Column(String(50), nullable=False, default="群")
+    groups_label = Column(String(50), nullable=False, default="群组")
+    field_config = Column(Text, default="{}")
+    is_public = Column(Boolean, default=False)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=_utcnow)
+
+    user = relationship("User", back_populates="boards")
+    persons = relationship("Person", back_populates="board", cascade="all, delete-orphan")
+    groups = relationship("Group", back_populates="board", cascade="all, delete-orphan")
+    accounts = relationship("Account", back_populates="board", cascade="all, delete-orphan")
+
 class Person(Base):
     __tablename__ = "persons"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    board_id = Column(Integer, ForeignKey("boards.id", ondelete="CASCADE"), nullable=True, index=True)
     name = Column(String(100), nullable=False, index=True)
     remark = Column(String(200), nullable=True)
     signature = Column(String(500), nullable=True)
@@ -24,6 +59,7 @@ class Person(Base):
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
+    board = relationship("Board", back_populates="persons")
     accounts = relationship("Account", back_populates="person", cascade="all, delete-orphan")
     relations_from = relationship("PersonRelation", foreign_keys="PersonRelation.person_id_1", cascade="all, delete-orphan")
     relations_to = relationship("PersonRelation", foreign_keys="PersonRelation.person_id_2", cascade="all, delete-orphan")
@@ -34,12 +70,14 @@ class Account(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     person_id = Column(Integer, ForeignKey("persons.id", ondelete="CASCADE"), nullable=False, index=True)
+    board_id = Column(Integer, ForeignKey("boards.id", ondelete="CASCADE"), nullable=True, index=True)
     account_type = Column(String(50), nullable=False)
     account_identifier = Column(String(200), nullable=False)
     current_nickname = Column(String(200), nullable=True)
     current_avatar = Column(String(2000), nullable=True)
     created_at = Column(DateTime, default=_utcnow)
 
+    board = relationship("Board", back_populates="accounts")
     person = relationship("Person", back_populates="accounts")
     nickname_histories = relationship("AccountNicknameHistory", back_populates="account", cascade="all, delete-orphan")
     memberships = relationship("GroupMembership", back_populates="account", cascade="all, delete-orphan")
@@ -59,6 +97,7 @@ class Group(Base):
     __tablename__ = "groups"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    board_id = Column(Integer, ForeignKey("boards.id", ondelete="CASCADE"), nullable=True, index=True)
     group_number = Column(String(100), nullable=False, unique=True, index=True)
     group_name = Column(String(200), nullable=False)
     remark = Column(String(200), nullable=True)
@@ -66,6 +105,7 @@ class Group(Base):
     avatar = Column(String(2000), nullable=True)
     created_at = Column(DateTime, default=_utcnow)
 
+    board = relationship("Board", back_populates="groups")
     memberships = relationship("GroupMembership", back_populates="group", cascade="all, delete-orphan")
 
 class GroupMembership(Base):
@@ -121,4 +161,15 @@ class AuditLog(Base):
     target_type = Column(String(50), nullable=False, index=True)
     target_id = Column(Integer, nullable=True)
     details = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=_utcnow)
+
+class AuthToken(Base):
+    __tablename__ = "auth_tokens"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token = Column(String(100), unique=True, nullable=False, index=True)
+    username = Column(String(100), nullable=False, index=True)
+    uid = Column(String(21), nullable=False)
+    role = Column(String(10), nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
     created_at = Column(DateTime, default=_utcnow)

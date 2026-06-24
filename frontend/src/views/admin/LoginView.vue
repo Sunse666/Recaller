@@ -19,7 +19,11 @@ async function doLogin() {
   loading.value = true
   try {
     await auth.login(username.value, password.value)
-    router.replace('/admin/persons')
+    if (auth.role === 'admin') {
+      router.replace('/admin/persons')
+    } else {
+      router.replace(`/${auth.uid}`)
+    }
   } catch (e) {
     error.value = e.message
   } finally {
@@ -29,16 +33,16 @@ async function doLogin() {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-100">
-    <div class="bg-white rounded-xl shadow-sm p-8 w-full max-w-sm">
-      <h1 class="text-xl font-bold text-center mb-6">群友记忆助手 · 管理后台</h1>
+  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 via-white to-blue-50">
+    <div class="bg-white rounded-xl shadow-lg p-8 w-full max-w-sm border border-pink-100">
+      <h1 class="text-xl font-bold text-center mb-6 text-primary">群友记忆助手</h1>
       <div class="space-y-4">
         <div>
           <input
             v-model="username"
             type="text"
             placeholder="用户名"
-            class="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5]"
+            class="w-full px-4 py-2.5 text-sm border border-pink-100 rounded-lg outline-none focus:border-primary focus:bg-pink-50/30 transition"
             @keyup.enter="doLogin"
           />
         </div>
@@ -47,7 +51,7 @@ async function doLogin() {
             v-model="password"
             type="password"
             placeholder="密码"
-            class="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5]"
+            class="w-full px-4 py-2.5 text-sm border border-pink-100 rounded-lg outline-none focus:border-primary focus:bg-pink-50/30 transition"
             @keyup.enter="doLogin"
           />
         </div>
@@ -55,11 +59,14 @@ async function doLogin() {
         <button
           @click="doLogin"
           :disabled="loading"
-          class="w-full py-2.5 bg-[#12b7f5] text-white rounded-lg font-medium hover:bg-[#0ea0db] disabled:opacity-50 transition"
+          class="w-full py-2.5 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark disabled:opacity-50 transition"
         >
           {{ loading ? '登录中...' : '登录' }}
         </button>
       </div>
+      <p class="text-center text-sm text-gray-400 mt-4">
+        没有账号？<router-link to="/register" class="text-primary hover:underline">注册</router-link>
+      </p>
     </div>
   </div>
 </template>

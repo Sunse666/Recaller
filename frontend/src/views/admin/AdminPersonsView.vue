@@ -1,7 +1,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { api } from '../../api/client'
+import { useBoardStore } from '../../stores/boards'
+import { useLabels } from '../../utils/labels'
 
+const labels = useLabels()
 const persons = ref([])
 const allAccounts = ref({}) // personId -> accounts[]
 const loading = ref(false)
@@ -47,8 +50,9 @@ function addImpressionTag() {
 function removeImpressionTag(i) { form.value.impression_tags.splice(i, 1) }
 
 async function loadPersons() {
+  const boardStore = useBoardStore()
   loading.value = true
-  persons.value = await api.listPersons(search.value)
+  persons.value = await api.listPersons(search.value, boardStore.currentBoardId)
   // 加载所有人的账号
   for (const p of persons.value) {
     if (!allAccounts.value[p.id]) {
@@ -94,11 +98,11 @@ async function doSave() {
   savingMessage.value = ''
   try {
     if (view.value === 'create') {
-      await api.createPerson(form.value)
-      savingMessage.value = '创建成功'
+      await api.createPerson({ ...form.value, board_id: useBoardStore().currentBoardId })
+      savingMessage.value = labels.value.createSuccess
     } else {
       await api.updatePerson(editingPerson.value.id, form.value)
-      savingMessage.value = '保存成功'
+      savingMessage.value = labels.value.saveSuccess
     }
     setTimeout(goList, 600)
   } catch (e) {
@@ -109,7 +113,7 @@ async function doSave() {
 }
 
 async function doDelete(id) {
-  if (!confirm('确定删除？这将同时删除该群友的所有账号。')) return
+  if (!confirm(labels.value.confirmDeleteCard)) return
   await api.deletePerson(id)
   delete allAccounts.value[id]
   loadPersons()
@@ -131,7 +135,7 @@ async function doAddAccount() {
 }
 
 async function doDeleteAccount(accId) {
-  if (!confirm('确定删除此账号？')) return
+  if (!confirm(labels.value.confirmDeleteAccount)) return
   await api.deleteAccount(editingPerson.value.id, accId)
   accounts.value = await api.listAccounts(editingPerson.value.id)
 }
@@ -143,9 +147,9 @@ onMounted(loadPersons)
   <div>
     <template v-if="view === 'list'">
       <div class="flex items-center justify-between mb-5">
-        <h2 class="text-lg font-bold">群友管理</h2>
-        <button @click="goCreate" class="px-4 py-2 bg-[#12b7f5] text-white text-sm rounded-lg hover:bg-[#0ea0db] transition">
-          + 添加群友
+        <h2 class="text-lg font-bold">{{ labels.cardManage }}</h2>
+        <button @click="goCreate" class="px-4 py-2 bg-primary text-white text-sm rounded-xl hover:bg-primary-dark transition shadow-sm">
+          {{ labels.addCard }}
         </button>
       </div>
 
@@ -153,29 +157,29 @@ onMounted(loadPersons)
         <input
           v-model="search"
           @input="loadPersons"
-          placeholder="搜索群友..."
-          class="w-full max-w-sm px-4 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5]"
+          :placeholder="labels.searchCard"
+          class="w-full max-w-sm px-4 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary focus:bg-pink-50/30 transition"
         />
       </div>
 
-      <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <div v-if="loading" class="text-center text-gray-400 py-10">加载中...</div>
-        <div v-else-if="persons.length === 0" class="text-center text-gray-400 py-10">暂无数据</div>
+      <div class="bg-white rounded-xl border border-pink-100 overflow-hidden">
+        <div v-if="loading" class="text-center text-gray-400 py-10">{{ labels.loading }}</div>
+        <div v-else-if="persons.length === 0" class="text-center text-gray-400 py-10">{{ labels.noData }}</div>
         <table v-else class="w-full text-sm">
-          <thead class="bg-gray-50 text-gray-500 text-xs">
+          <thead class="bg-pink-50/30 text-gray-500 text-xs">
             <tr>
-              <th class="text-left px-4 py-2.5 font-normal">群友</th>
-              <th class="text-left px-4 py-2.5 font-normal">账号</th>
-              <th class="text-left px-4 py-2.5 font-normal">圈子标签</th>
-              <th class="text-left px-4 py-2.5 font-normal">重要度</th>
-              <th class="text-right px-4 py-2.5 font-normal">操作</th>
+              <th class="text-left px-4 py-2.5 font-normal">{{ labels.tableCard }}</th>
+              <th class="text-left px-4 py-2.5 font-normal">{{ labels.tableAccounts }}</th>
+              <th class="text-left px-4 py-2.5 font-normal">{{ labels.tableTags }}</th>
+              <th class="text-left px-4 py-2.5 font-normal">{{ labels.tableImportance }}</th>
+              <th class="text-right px-4 py-2.5 font-normal">{{ labels.tableActions }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="p in persons" :key="p.id" class="border-t border-gray-50 hover:bg-gray-50 transition">
+            <tr v-for="p in persons" :key="p.id" class="border-t border-pink-50 hover:bg-pink-50/30 transition">
               <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
-                  <img :src="p.avatar || '/default-avatar.svg'" class="w-8 h-8 rounded-full object-cover bg-gray-200" />
+                  <img :src="p.avatar || '/default-avatar.svg'" class="w-8 h-8 rounded-full object-cover bg-pink-100" />
                   <div>
                     <p class="font-medium">{{ p.name }}</p>
                     <p v-if="p.remark" class="text-xs text-gray-400">{{ p.remark }}</p>
@@ -210,8 +214,8 @@ onMounted(loadPersons)
                 <span class="text-yellow-400">{{ '⭐'.repeat(Math.min(p.importance, 5)) || '-' }}</span>
               </td>
               <td class="px-4 py-3 text-right">
-                <button @click="goEdit(p)" class="text-[#12b7f5] hover:underline text-xs mr-3">编辑</button>
-                <button @click="doDelete(p.id)" class="text-red-400 hover:underline text-xs">删除</button>
+                <button @click="goEdit(p)" class="text-primary hover:underline text-xs mr-3">{{ labels.edit }}</button>
+                <button @click="doDelete(p.id)" class="text-red-400 hover:underline text-xs">{{ labels.delete }}</button>
               </td>
             </tr>
           </tbody>
@@ -223,39 +227,39 @@ onMounted(loadPersons)
       <div class="max-w-2xl">
         <div class="flex items-center gap-3 mb-5">
           <button @click="goList" class="text-gray-400 hover:text-gray-600">&larr;</button>
-          <h2 class="text-lg font-bold">{{ view === 'create' ? '添加群友' : '编辑群友' }}</h2>
+          <h2 class="text-lg font-bold">{{ view === 'create' ? labels.addCardTitle : labels.editCardTitle }}</h2>
         </div>
 
         <div class="bg-white rounded-xl p-6 space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-xs text-gray-500 mb-1 block">姓名 *</label>
-              <input v-model="form.name" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5]" />
+              <label class="text-xs text-gray-500 mb-1 block">{{ labels.cardNameLabel }}</label>
+              <input v-model="form.name" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
             <div>
-              <label class="text-xs text-gray-500 mb-1 block">备注名</label>
-              <input v-model="form.remark" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5]" />
+              <label class="text-xs text-gray-500 mb-1 block">{{ labels.remarkLabel }}</label>
+              <input v-model="form.remark" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
             <div class="col-span-2">
-              <label class="text-xs text-gray-500 mb-1 block">签名</label>
-              <input v-model="form.signature" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5]" />
+              <label class="text-xs text-gray-500 mb-1 block">{{ labels.signatureLabel }}</label>
+              <input v-model="form.signature" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
             <div>
-              <label class="text-xs text-gray-500 mb-1 block">所在地</label>
-              <input v-model="form.location" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5]" />
+              <label class="text-xs text-gray-500 mb-1 block">{{ labels.locationLabel }}</label>
+              <input v-model="form.location" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
             <div>
-              <label class="text-xs text-gray-500 mb-1 block">生日</label>
-              <input v-model="form.birthday" placeholder="如 01-15" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5]" />
+              <label class="text-xs text-gray-500 mb-1 block">{{ labels.birthdayLabel }}</label>
+              <input v-model="form.birthday" placeholder="{{ labels.birthdayPlaceholder }}" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
             <div class="col-span-2">
-              <label class="text-xs text-gray-500 mb-1 block">头像 URL</label>
-              <input v-model="form.avatar" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5]" />
+              <label class="text-xs text-gray-500 mb-1 block">{{ labels.avatarLabel }}</label>
+              <input v-model="form.avatar" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
             <div>
-              <label class="text-xs text-gray-500 mb-1 block">重要度 (1-5)</label>
-              <select v-model.number="form.importance" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none">
-                <option :value="0">未设置</option>
+              <label class="text-xs text-gray-500 mb-1 block">{{ labels.importanceLabel }}</label>
+              <select v-model.number="form.importance" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none">
+                <option :value="0">{{ labels.importanceNone }}</option>
                 <option :value="1">⭐</option>
                 <option :value="2">⭐⭐</option>
                 <option :value="3">⭐⭐⭐</option>
@@ -266,10 +270,10 @@ onMounted(loadPersons)
           </div>
 
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">圈子标签</label>
+            <label class="text-xs text-gray-500 mb-1 block">{{ labels.circleTagsLabel }}</label>
             <div class="flex gap-2 mb-2">
-              <input v-model="circleInput" @keyup.enter="addCircleTag" placeholder="输入后回车添加" class="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5]" />
-              <button @click="addCircleTag" class="px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">添加</button>
+              <input v-model="circleInput" @keyup.enter="addCircleTag" :placeholder="labels.tagPlaceholder" class="flex-1 px-3 py-1.5 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+              <button @click="addCircleTag" class="px-3 py-1.5 text-sm bg-pink-50/50 rounded-xl hover:bg-pink-100">{{ labels.addTag }}</button>
             </div>
             <div class="flex flex-wrap gap-1.5">
               <span v-for="(t, i) in form.circle_tags" :key="i" class="px-2 py-0.5 text-xs bg-blue-50 text-blue-600 rounded-full flex items-center gap-1">
@@ -280,10 +284,10 @@ onMounted(loadPersons)
           </div>
 
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">印象标签</label>
+            <label class="text-xs text-gray-500 mb-1 block">{{ labels.impressionTagsLabel }}</label>
             <div class="flex gap-2 mb-2">
-              <input v-model="impressionInput" @keyup.enter="addImpressionTag" placeholder="输入后回车添加" class="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5]" />
-              <button @click="addImpressionTag" class="px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">添加</button>
+              <input v-model="impressionInput" @keyup.enter="addImpressionTag" :placeholder="labels.tagPlaceholder" class="flex-1 px-3 py-1.5 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+              <button @click="addImpressionTag" class="px-3 py-1.5 text-sm bg-pink-50/50 rounded-xl hover:bg-pink-100">{{ labels.addTag }}</button>
             </div>
             <div class="flex flex-wrap gap-1.5">
               <span v-for="(t, i) in form.impression_tags" :key="i" class="px-2 py-0.5 text-xs bg-amber-50 text-amber-600 rounded-full flex items-center gap-1">
@@ -294,16 +298,16 @@ onMounted(loadPersons)
           </div>
 
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">印象笔记</label>
-            <textarea v-model="form.notes" rows="3" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5] resize-none"></textarea>
+            <label class="text-xs text-gray-500 mb-1 block">{{ labels.notesLabel }}</label>
+            <textarea v-model="form.notes" rows="3" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary resize-none"></textarea>
           </div>
 
-          <div v-if="view === 'edit'" class="border-t border-gray-100 pt-4 mt-4">
-            <h3 class="font-bold text-sm mb-3">账号管理</h3>
+          <div v-if="view === 'edit'" class="border-t border-pink-100 pt-4 mt-4">
+            <h3 class="font-bold text-sm mb-3">{{ labels.tableAccounts }}{{ labels.cardManage }}</h3>
 
             <div v-if="accounts.length > 0" class="space-y-2 mb-4">
-              <div v-for="a in accounts" :key="a.id" class="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg">
-                <img :src="a.current_avatar || '/default-avatar.svg'" class="w-7 h-7 rounded-full object-cover bg-gray-200 shrink-0" />
+              <div v-for="a in accounts" :key="a.id" class="flex items-center gap-3 px-3 py-2 bg-pink-50/30 rounded-xl">
+                <img :src="a.current_avatar || '/default-avatar.svg'" class="w-7 h-7 rounded-full object-cover bg-pink-100 shrink-0" />
                 <div class="flex-1 min-w-0">
                   <p class="text-sm">
                     <span
@@ -318,31 +322,31 @@ onMounted(loadPersons)
                     <span v-if="a.current_nickname" class="text-gray-500 ml-1">· {{ a.current_nickname }}</span>
                   </p>
                 </div>
-                <button @click="doDeleteAccount(a.id)" class="text-red-400 text-xs hover:underline shrink-0">删除</button>
+                <button @click="doDeleteAccount(a.id)" class="text-red-400 text-xs hover:underline shrink-0">{{ labels.delete }}</button>
               </div>
             </div>
-            <div v-else class="text-sm text-gray-400 mb-3">暂无账号</div>
+            <div v-else class="text-sm text-gray-400 mb-3">{{ labels.noAccounts }}</div>
 
             <div class="grid grid-cols-4 gap-2">
-              <select v-model="accForm.account_type" class="px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none">
+              <select v-model="accForm.account_type" class="px-2 py-1.5 text-xs border border-pink-100 rounded-xl outline-none">
                 <option value="QQ">QQ</option>
                 <option value="微信">微信</option>
                 <option value="游戏ID">游戏ID</option>
                 <option value="其他">其他</option>
               </select>
-              <input v-model="accForm.account_identifier" placeholder="账号 *" class="px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5]" />
-              <input v-model="accForm.current_nickname" placeholder="昵称" class="px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#12b7f5]" />
-              <button @click="doAddAccount" :disabled="accSaving" class="px-3 py-1.5 text-xs bg-[#12b7f5] text-white rounded-lg hover:bg-[#0ea0db] disabled:opacity-50">
-                {{ accSaving ? '...' : '+ 添加' }}
+              <input v-model="accForm.account_identifier" placeholder="账号 *" class="px-2 py-1.5 text-xs border border-pink-100 rounded-xl outline-none focus:border-primary" />
+              <input v-model="accForm.current_nickname" placeholder="昵称" class="px-2 py-1.5 text-xs border border-pink-100 rounded-xl outline-none focus:border-primary" />
+              <button @click="doAddAccount" :disabled="accSaving" class="px-3 py-1.5 text-xs bg-primary text-white rounded-xl hover:bg-primary-dark disabled:opacity-50">
+                {{ accSaving ? '...' : labels.addTag }}
               </button>
             </div>
           </div>
 
           <div class="flex items-center gap-3 pt-2">
-            <button @click="doSave" :disabled="saving" class="px-6 py-2 bg-[#12b7f5] text-white text-sm rounded-lg hover:bg-[#0ea0db] disabled:opacity-50 transition">
-              {{ saving ? '保存中...' : '保存' }}
+            <button @click="doSave" :disabled="saving" class="px-6 py-2 bg-primary text-white text-sm rounded-xl hover:bg-primary-dark disabled:opacity-50 transition">
+              {{ saving ? labels.saving : labels.save }}
             </button>
-            <button @click="goList" class="px-6 py-2 text-sm text-gray-500 hover:text-gray-700">取消</button>
+            <button @click="goList" class="px-6 py-2 text-sm text-gray-500 hover:text-gray-700">{{ labels.cancel }}</button>
             <span v-if="savingMessage" :class="savingMessage.includes('错误') ? 'text-red-500' : 'text-green-500'" class="text-sm">{{ savingMessage }}</span>
           </div>
         </div>

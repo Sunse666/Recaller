@@ -2,6 +2,57 @@ import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
 
+class UserRegister(BaseModel):
+    username: str = Field(..., min_length=2, max_length=50)
+    password: str = Field(..., min_length=8, max_length=128)
+
+class UserBrief(BaseModel):
+    uid: str
+    username: str
+    role: str
+    model_config = {"from_attributes": True}
+
+
+class BoardCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    icon: Optional[str] = Field(default=None, max_length=10)
+    description: Optional[str] = Field(default=None, max_length=200)
+    card_label: str = Field(default="群友", max_length=50)
+    cards_label: str = Field(default="群友们", max_length=50)
+    group_label: str = Field(default="群", max_length=50)
+    groups_label: str = Field(default="群组", max_length=50)
+    field_config: dict = {}
+    is_public: bool = False
+    sort_order: int = 0
+
+class BoardUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    icon: Optional[str] = Field(default=None, max_length=10)
+    description: Optional[str] = Field(default=None, max_length=200)
+    card_label: Optional[str] = Field(default=None, max_length=50)
+    cards_label: Optional[str] = Field(default=None, max_length=50)
+    group_label: Optional[str] = Field(default=None, max_length=50)
+    groups_label: Optional[str] = Field(default=None, max_length=50)
+    field_config: Optional[dict] = None
+    is_public: Optional[bool] = None
+    sort_order: Optional[int] = None
+
+class BoardResponse(BaseModel):
+    id: int
+    user_id: int
+    name: str
+    icon: Optional[str] = None
+    description: Optional[str] = None
+    card_label: str
+    cards_label: str
+    group_label: str
+    groups_label: str
+    field_config: dict
+    is_public: bool
+    sort_order: int
+    created_at: Optional[datetime.datetime] = None
+    model_config = {"from_attributes": True}
+
 class PersonCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=50, description="姓名")
     remark: Optional[str] = Field(default=None, max_length=100)
@@ -13,6 +64,7 @@ class PersonCreate(BaseModel):
     importance: int = Field(default=0, ge=0, le=5, description="重要性 0-5")
     notes: Optional[str] = Field(default=None, max_length=2000)
     birthday: Optional[str] = Field(default=None, max_length=20)
+    board_id: Optional[int] = None
 
 class PersonUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=50)
@@ -25,6 +77,7 @@ class PersonUpdate(BaseModel):
     importance: Optional[int] = Field(default=None, ge=0, le=5)
     notes: Optional[str] = Field(default=None, max_length=2000)
     birthday: Optional[str] = Field(default=None, max_length=20)
+    board_id: Optional[int] = None
 
 class PersonBrief(BaseModel):
     id: int
@@ -36,7 +89,7 @@ class PersonBrief(BaseModel):
     impression_tags: List[str] = []
     importance: int = 0
     account_count: int = 0
-
+    board_id: Optional[int] = None
     model_config = {"from_attributes": True}
 
 class PersonDetail(BaseModel):
@@ -51,9 +104,9 @@ class PersonDetail(BaseModel):
     importance: int = 0
     notes: Optional[str] = None
     birthday: Optional[str] = None
+    board_id: Optional[int] = None
     created_at: Optional[datetime.datetime] = None
     updated_at: Optional[datetime.datetime] = None
-
     model_config = {"from_attributes": True}
 
 class AccountCreate(BaseModel):
@@ -107,12 +160,14 @@ class GroupCreate(BaseModel):
     remark: Optional[str] = Field(default=None, max_length=100)
     tags: List[str] = []
     avatar: Optional[str] = Field(default=None, max_length=500)
+    board_id: Optional[int] = None
 
 class GroupUpdate(BaseModel):
     group_name: Optional[str] = Field(default=None, min_length=1, max_length=50)
     remark: Optional[str] = Field(default=None, max_length=100)
     tags: Optional[List[str]] = None
     avatar: Optional[str] = Field(default=None, max_length=500)
+    board_id: Optional[int] = None
 
 class GroupBrief(BaseModel):
     id: int
@@ -121,7 +176,7 @@ class GroupBrief(BaseModel):
     remark: Optional[str] = None
     tags: List[str] = []
     avatar: Optional[str] = None
-
+    board_id: Optional[int] = None
     model_config = {"from_attributes": True}
 
 class GroupDetail(BaseModel):
@@ -131,8 +186,8 @@ class GroupDetail(BaseModel):
     remark: Optional[str] = None
     tags: List[str] = []
     avatar: Optional[str] = None
+    board_id: Optional[int] = None
     created_at: Optional[datetime.datetime] = None
-
     model_config = {"from_attributes": True}
 
 class MembershipCreate(BaseModel):
