@@ -15,6 +15,6 @@ services:
     container_name: recaller-frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "5174:80"
     depends_on:
       - backend
