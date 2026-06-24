@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
 from ..models import Group, GroupMembership, Account
+from ..auth import require_admin
+from ..audit import log as audit_log
 from .. import schemas
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
@@ -35,7 +37,7 @@ def get_group(group_id: int, db: Session = Depends(get_db)):
     return _group_to_detail(g)
 
 @router.post("", response_model=schemas.GroupDetail, status_code=201)
-def create_group(data: schemas.GroupCreate, db: Session = Depends(get_db)):
+def create_group(data: schemas.GroupCreate, db: Session = Depends(get_db), user: str = Depends(require_admin)):
     existing = db.query(Group).filter(Group.group_number == data.group_number).first()
     if existing:
         raise HTTPException(status_code=400, detail="该群号已存在")
@@ -47,30 +49,39 @@ def create_group(data: schemas.GroupCreate, db: Session = Depends(get_db)):
         avatar=data.avatar,
     )
     db.add(g)
+    db.flush()
+    audit_log(db, user, "create", "group", g.id, {"name": data.group_name, "number": data.group_number})
     db.commit()
     db.refresh(g)
     return _group_to_detail(g)
 
 @router.put("/{group_id}", response_model=schemas.GroupDetail)
-def update_group(group_id: int, data: schemas.GroupUpdate, db: Session = Depends(get_db)):
+def update_group(group_id: int, data: schemas.GroupUpdate, db: Session = Depends(get_db), user: str = Depends(require_admin)):
     g = db.query(Group).get(group_id)
     if not g:
         raise HTTPException(status_code=404, detail="群不存在")
+    changed = {}
     for field, val in data.model_dump(exclude_unset=True).items():
         if field == "tags" and val is not None:
             setattr(g, field, json.dumps(val, ensure_ascii=False))
+            changed[field] = True
         elif val is not None:
             setattr(g, field, val)
+            changed[field] = True
+    if changed:
+        audit_log(db, user, "update", "group", group_id, {"changed_fields": list(changed.keys())})
     db.commit()
     db.refresh(g)
     return _group_to_detail(g)
 
 @router.delete("/{group_id}", status_code=204)
-def delete_group(group_id: int, db: Session = Depends(get_db)):
+def delete_group(group_id: int, db: Session = Depends(get_db), user: str = Depends(require_admin)):
     g = db.query(Group).get(group_id)
     if not g:
         raise HTTPException(status_code=404, detail="群不存在")
+    info = {"name": g.group_name, "number": g.group_number}
     db.delete(g)
+    audit_log(db, user, "delete", "group", group_id, info)
     db.commit()
 
 @router.get("/{group_id}/members", response_model=list[schemas.AccountBrief])
@@ -94,7 +105,7 @@ def list_group_members(group_id: int, db: Session = Depends(get_db)):
     ]
 
 @router.post("/{group_id}/members", response_model=schemas.MembershipBrief, status_code=201)
-def add_member(group_id: int, data: schemas.MembershipCreate, db: Session = Depends(get_db)):
+def add_member(group_id: int, data: schemas.MembershipCreate, db: Session = Depends(get_db), user: str = Depends(require_admin)):
     g = db.query(Group).get(group_id)
     if not g:
         raise HTTPException(status_code=404, detail="群不存在")
@@ -117,6 +128,8 @@ def add_member(group_id: int, data: schemas.MembershipCreate, db: Session = Depe
         is_muted=data.is_muted,
     )
     db.add(m)
+    db.flush()
+    audit_log(db, user, "create", "membership", m.id, {"group_id": group_id, "account_id": data.account_id})
     db.commit()
     db.refresh(m)
     return schemas.MembershipBrief(
@@ -126,15 +139,19 @@ def add_member(group_id: int, data: schemas.MembershipCreate, db: Session = Depe
     )
 
 @router.put("/{group_id}/members/{membership_id}", response_model=schemas.MembershipBrief)
-def update_membership(group_id: int, membership_id: int, data: schemas.MembershipUpdate, db: Session = Depends(get_db)):
+def update_membership(group_id: int, membership_id: int, data: schemas.MembershipUpdate, db: Session = Depends(get_db), user: str = Depends(require_admin)):
     m = db.query(GroupMembership).filter(
         GroupMembership.id == membership_id,
         GroupMembership.group_id == group_id,
     ).first()
     if not m:
         raise HTTPException(status_code=404, detail="成员关系不存在")
+    changed = {}
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(m, field, val)
+        changed[field] = True
+    if changed:
+        audit_log(db, user, "update", "membership", membership_id, {"changed_fields": list(changed.keys())})
     db.commit()
     db.refresh(m)
     return schemas.MembershipBrief(
@@ -144,7 +161,7 @@ def update_membership(group_id: int, membership_id: int, data: schemas.Membershi
     )
 
 @router.delete("/{group_id}/members/{membership_id}", status_code=204)
-def remove_member(group_id: int, membership_id: int, db: Session = Depends(get_db)):
+def remove_member(group_id: int, membership_id: int, db: Session = Depends(get_db), user: str = Depends(require_admin)):
     m = db.query(GroupMembership).filter(
         GroupMembership.id == membership_id,
         GroupMembership.group_id == group_id,
@@ -152,4 +169,5 @@ def remove_member(group_id: int, membership_id: int, db: Session = Depends(get_d
     if not m:
         raise HTTPException(status_code=404, detail="成员关系不存在")
     db.delete(m)
+    audit_log(db, user, "delete", "membership", membership_id, {"group_id": group_id})
     db.commit()

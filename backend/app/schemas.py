@@ -1,30 +1,30 @@
 import datetime
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class PersonCreate(BaseModel):
-    name: str
-    remark: Optional[str] = None
-    signature: Optional[str] = None
-    location: Optional[str] = None
-    avatar: Optional[str] = None
+    name: str = Field(..., min_length=1, max_length=50, description="姓名")
+    remark: Optional[str] = Field(default=None, max_length=100)
+    signature: Optional[str] = Field(default=None, max_length=200)
+    location: Optional[str] = Field(default=None, max_length=100)
+    avatar: Optional[str] = Field(default=None, max_length=500)
     circle_tags: List[str] = []
     impression_tags: List[str] = []
-    importance: int = 0
-    notes: Optional[str] = None
-    birthday: Optional[str] = None
+    importance: int = Field(default=0, ge=0, le=5, description="重要性 0-5")
+    notes: Optional[str] = Field(default=None, max_length=2000)
+    birthday: Optional[str] = Field(default=None, max_length=20)
 
 class PersonUpdate(BaseModel):
-    name: Optional[str] = None
-    remark: Optional[str] = None
-    signature: Optional[str] = None
-    location: Optional[str] = None
-    avatar: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=50)
+    remark: Optional[str] = Field(default=None, max_length=100)
+    signature: Optional[str] = Field(default=None, max_length=200)
+    location: Optional[str] = Field(default=None, max_length=100)
+    avatar: Optional[str] = Field(default=None, max_length=500)
     circle_tags: Optional[List[str]] = None
     impression_tags: Optional[List[str]] = None
-    importance: Optional[int] = None
-    notes: Optional[str] = None
-    birthday: Optional[str] = None
+    importance: Optional[int] = Field(default=None, ge=0, le=5)
+    notes: Optional[str] = Field(default=None, max_length=2000)
+    birthday: Optional[str] = Field(default=None, max_length=20)
 
 class PersonBrief(BaseModel):
     id: int
@@ -57,16 +57,16 @@ class PersonDetail(BaseModel):
     model_config = {"from_attributes": True}
 
 class AccountCreate(BaseModel):
-    account_type: str
-    account_identifier: str
-    current_nickname: Optional[str] = None
-    current_avatar: Optional[str] = None
+    account_type: str = Field(..., min_length=1, max_length=20)
+    account_identifier: str = Field(..., min_length=1, max_length=100)
+    current_nickname: Optional[str] = Field(default=None, max_length=50)
+    current_avatar: Optional[str] = Field(default=None, max_length=500)
 
 class AccountUpdate(BaseModel):
-    account_type: Optional[str] = None
-    account_identifier: Optional[str] = None
-    current_nickname: Optional[str] = None
-    current_avatar: Optional[str] = None
+    account_type: Optional[str] = Field(default=None, min_length=1, max_length=20)
+    account_identifier: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    current_nickname: Optional[str] = Field(default=None, max_length=50)
+    current_avatar: Optional[str] = Field(default=None, max_length=500)
 
 class AccountBrief(BaseModel):
     id: int
@@ -89,8 +89,8 @@ class AccountDetail(BaseModel):
     model_config = {"from_attributes": True}
 
 class NicknameHistoryCreate(BaseModel):
-    nickname: str
-    avatar: Optional[str] = None
+    nickname: str = Field(..., min_length=1, max_length=50)
+    avatar: Optional[str] = Field(default=None, max_length=500)
     changed_at: datetime.datetime
 
 class NicknameHistoryBrief(BaseModel):
@@ -102,17 +102,17 @@ class NicknameHistoryBrief(BaseModel):
     model_config = {"from_attributes": True}
 
 class GroupCreate(BaseModel):
-    group_number: str
-    group_name: str
-    remark: Optional[str] = None
+    group_number: str = Field(..., min_length=1, max_length=50)
+    group_name: str = Field(..., min_length=1, max_length=50)
+    remark: Optional[str] = Field(default=None, max_length=100)
     tags: List[str] = []
-    avatar: Optional[str] = None
+    avatar: Optional[str] = Field(default=None, max_length=500)
 
 class GroupUpdate(BaseModel):
-    group_name: Optional[str] = None
-    remark: Optional[str] = None
+    group_name: Optional[str] = Field(default=None, min_length=1, max_length=50)
+    remark: Optional[str] = Field(default=None, max_length=100)
     tags: Optional[List[str]] = None
-    avatar: Optional[str] = None
+    avatar: Optional[str] = Field(default=None, max_length=500)
 
 class GroupBrief(BaseModel):
     id: int
@@ -138,14 +138,14 @@ class GroupDetail(BaseModel):
 class MembershipCreate(BaseModel):
     account_id: int
     group_id: int
-    group_nickname: Optional[str] = None
+    group_nickname: Optional[str] = Field(default=None, max_length=50)
     joined_at: Optional[datetime.datetime] = None
     left_at: Optional[datetime.datetime] = None
     is_pinned: bool = False
     is_muted: bool = False
 
 class MembershipUpdate(BaseModel):
-    group_nickname: Optional[str] = None
+    group_nickname: Optional[str] = Field(default=None, max_length=50)
     joined_at: Optional[datetime.datetime] = None
     left_at: Optional[datetime.datetime] = None
     is_pinned: Optional[bool] = None
@@ -166,7 +166,7 @@ class MembershipBrief(BaseModel):
 
 class RelationCreate(BaseModel):
     person_id_2: int
-    relation_type: Optional[str] = None
+    relation_type: Optional[str] = Field(default=None, max_length=50)
 
 class RelationBrief(BaseModel):
     id: int
@@ -177,8 +177,8 @@ class RelationBrief(BaseModel):
     model_config = {"from_attributes": True}
 
 class MeetingCreate(BaseModel):
-    description: str
-    met_at: Optional[str] = None
+    description: str = Field(..., min_length=1, max_length=500)
+    met_at: Optional[str] = Field(default=None, max_length=100)
 
 class MeetingBrief(BaseModel):
     id: int

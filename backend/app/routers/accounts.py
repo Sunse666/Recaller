@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
 from ..models import Person, Account, AccountNicknameHistory, GroupMembership
+from ..auth import require_admin
+from ..audit import log as audit_log
 from .. import schemas
 
 router = APIRouter(prefix="/api/persons/{person_id}/accounts", tags=["accounts"])
@@ -36,7 +38,7 @@ def list_accounts(person_id: int, db: Session = Depends(get_db)):
     return [_account_to_detail(a) for a in accounts]
 
 @router.post("", response_model=schemas.AccountDetail, status_code=201)
-def create_account(person_id: int, data: schemas.AccountCreate, db: Session = Depends(get_db)):
+def create_account(person_id: int, data: schemas.AccountCreate, db: Session = Depends(get_db), user: str = Depends(require_admin)):
     p = db.query(Person).get(person_id)
     if not p:
         raise HTTPException(status_code=404, detail="群友不存在")
@@ -48,34 +50,42 @@ def create_account(person_id: int, data: schemas.AccountCreate, db: Session = De
         current_avatar=data.current_avatar,
     )
     db.add(a)
+    db.flush()
+    audit_log(db, user, "create", "account", a.id, {"person_id": person_id, "type": data.account_type, "identifier": data.account_identifier})
     db.commit()
     db.refresh(a)
     return _account_to_detail(a)
 
 @router.put("/{account_id}", response_model=schemas.AccountDetail)
-def update_account(person_id: int, account_id: int, data: schemas.AccountUpdate, db: Session = Depends(get_db)):
+def update_account(person_id: int, account_id: int, data: schemas.AccountUpdate, db: Session = Depends(get_db), user: str = Depends(require_admin)):
     a = db.query(Account).options(joinedload(Account.nickname_histories)).filter(
         Account.id == account_id, Account.person_id == person_id
     ).first()
     if not a:
         raise HTTPException(status_code=404, detail="账号不存在")
+    changed = {}
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(a, field, val)
+        changed[field] = True
+    if changed:
+        audit_log(db, user, "update", "account", account_id, {"changed_fields": list(changed.keys())})
     db.commit()
     db.refresh(a)
     return _account_to_detail(a)
 
 @router.delete("/{account_id}", status_code=204)
-def delete_account(person_id: int, account_id: int, db: Session = Depends(get_db)):
+def delete_account(person_id: int, account_id: int, db: Session = Depends(get_db), user: str = Depends(require_admin)):
     a = db.query(Account).filter(Account.id == account_id, Account.person_id == person_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="账号不存在")
+    info = {"person_id": person_id, "type": a.account_type, "identifier": a.account_identifier}
     db.delete(a)
+    audit_log(db, user, "delete", "account", account_id, info)
     db.commit()
 
 @router.post("/{account_id}/nicknames", response_model=schemas.NicknameHistoryBrief, status_code=201)
 def add_nickname_history(
-    person_id: int, account_id: int, data: schemas.NicknameHistoryCreate, db: Session = Depends(get_db)
+    person_id: int, account_id: int, data: schemas.NicknameHistoryCreate, db: Session = Depends(get_db), user: str = Depends(require_admin)
 ):
     a = db.query(Account).filter(Account.id == account_id, Account.person_id == person_id).first()
     if not a:
@@ -84,13 +94,15 @@ def add_nickname_history(
         account_id=account_id, nickname=data.nickname, avatar=data.avatar, changed_at=data.changed_at
     )
     db.add(h)
+    db.flush()
+    audit_log(db, user, "create", "nickname_history", h.id, {"account_id": account_id, "nickname": data.nickname})
     db.commit()
     db.refresh(h)
     return h
 
 @router.delete("/{account_id}/nicknames/{history_id}", status_code=204)
 def remove_nickname_history(
-    person_id: int, account_id: int, history_id: int, db: Session = Depends(get_db)
+    person_id: int, account_id: int, history_id: int, db: Session = Depends(get_db), user: str = Depends(require_admin)
 ):
     h = db.query(AccountNicknameHistory).join(Account).filter(
         AccountNicknameHistory.id == history_id,
@@ -100,6 +112,7 @@ def remove_nickname_history(
     if not h:
         raise HTTPException(status_code=404, detail="历史记录不存在")
     db.delete(h)
+    audit_log(db, user, "delete", "nickname_history", history_id, {"account_id": account_id})
     db.commit()
 
 @router.get("/{account_id}/memberships", response_model=list[schemas.MembershipBrief])

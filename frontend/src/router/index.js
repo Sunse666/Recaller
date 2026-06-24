@@ -47,14 +47,14 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth) {
-    const token = localStorage.getItem('token')
-    if (!token) {
+    const username = localStorage.getItem('username')
+    if (!username) {
       return next('/admin/login')
     }
   }
   if (to.path === '/admin/login') {
-    const token = localStorage.getItem('token')
-    if (token) {
+    const username = localStorage.getItem('username')
+    if (username) {
       return next('/admin/persons')
     }
   }
