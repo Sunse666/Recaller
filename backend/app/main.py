@@ -45,11 +45,11 @@ def _cleanup_expired_tokens():
     finally:
         db.close()
 
-_init_admin()
 run_startup_migration()
+_init_admin()
 _cleanup_expired_tokens()
 
-app = FastAPI(title="群友记忆助手 API")
+app = FastAPI(title="Recaller Gallery API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -63,7 +63,7 @@ MAX_BODY_BYTES = 1 * 1024 * 1024
 
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if request.method in ("POST", "PUT") and not request.url.path.startswith("/api/upload"):
+        if request.method in ("POST", "PUT") and not request.url.path.startswith("/api/upload") and not request.url.path.startswith("/api/auth/avatar"):
             content_length = request.headers.get("content-length")
             if content_length and int(content_length) > MAX_BODY_BYTES:
                 return JSONResponse(
@@ -137,9 +137,10 @@ def register(payload: dict, request: Request, db: Session = Depends(get_db)):
     try:
         user = create_user(db, username, password, role="user")
         board = Board(
-            user_id=user.id, name="默认看板", icon="👥",
-            card_label="群友", cards_label="群友们",
-            group_label="群", groups_label="群组",
+            user_id=user.id, name="默认画板", icon="🖼️",
+            card_label="图片", cards_label="图片",
+            group_label="图组", groups_label="图组",
+            board_type="image",
             field_config="{}", is_public=False, sort_order=0,
         )
         db.add(board)
@@ -158,8 +159,14 @@ def logout(request: Request, creds: HTTPAuthorizationCredentials | None = Depend
     return response
 
 @app.get("/api/auth/me")
-def me(user: dict = Depends(require_user)):
-    return user
+def me(user: dict = Depends(require_user), db: Session = Depends(get_db)):
+    u = db.query(User).filter(User.uid == user["uid"]).first()
+    return {
+        "uid": user["uid"],
+        "username": user["username"],
+        "role": user["role"],
+        "avatar": u.avatar if u else None,
+    }
 
 @app.post("/api/auth/change-password")
 def change_password(payload: dict, user: dict = Depends(require_user), db: Session = Depends(get_db)):
@@ -172,20 +179,112 @@ def change_password(payload: dict, user: dict = Depends(require_user), db: Sessi
         raise HTTPException(status_code=400, detail=err)
     return {"status": "ok"}
 
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024
+@app.post("/api/auth/change-username")
+def change_username(payload: dict, user: dict = Depends(require_user), db: Session = Depends(get_db)):
+    new_username = (payload.get("username") or "").strip()
+    if len(new_username) < 2 or len(new_username) > 50:
+        raise HTTPException(status_code=400, detail="用户名长度需要 2-50 个字符")
+    existing = db.query(User).filter(User.username == new_username).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="用户名已被占用")
+    u = db.query(User).filter(User.uid == user["uid"]).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    old = u.username
+    u.username = new_username
+    from .auth import revoke_user_tokens, create_token
+    revoke_user_tokens(old)
+    db.commit()
+    new_token = create_token(db, u.uid, new_username, u.role)
+    return {"username": new_username, "token": new_token}
 
-@app.post("/api/upload")
-async def upload_file(file: UploadFile = File(...), user: dict = Depends(require_user)):
+@app.post("/api/auth/avatar")
+async def upload_avatar(file: UploadFile = File(...), user: dict = Depends(require_user), db: Session = Depends(get_db)):
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"不支持的文件格式: {ext}")
     contents = await file.read()
+    if len(contents) > MAX_UPLOAD_SIZE * 2:
+        raise HTTPException(status_code=413, detail="文件过大，最大允许 20MB（压缩前）")
+    contents = _process_image(contents, ext)
     if len(contents) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=413, detail="文件过大，最大允许 10MB")
+        raise HTTPException(status_code=413, detail="压缩后仍超过 10MB，请上传更小的图片")
+    filename = f"{uuid.uuid4().hex}{ext}"
     user_dir = os.path.join(DATA_DIR, "uploads", user["uid"])
     os.makedirs(user_dir, exist_ok=True)
+    filepath = os.path.join(user_dir, filename)
+    with open(filepath, "wb") as f:
+        f.write(contents)
+    url = f"/uploads/{user['uid']}/{filename}"
+    u = db.query(User).filter(User.uid == user["uid"]).first()
+    if u:
+        u.avatar = url
+        db.commit()
+    return {"url": url}
+
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024
+MAX_IMAGE_PX = 2048
+JPEG_QUALITY = 85
+
+def _process_image(contents: bytes, ext: str) -> bytes:
+    """EXIF 清除 + 过大时自动压缩。GIF 跳过处理。"""
+    if ext == ".gif":
+        return contents
+    try:
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(contents))
+        img = img.convert("RGB") if img.mode in ("RGBA", "P", "LA") else img
+        w, h = img.size
+        if w > MAX_IMAGE_PX or h > MAX_IMAGE_PX:
+            ratio = MAX_IMAGE_PX / max(w, h)
+            img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
+        data = list(img.getdata())
+        img2 = Image.new(img.mode, img.size)
+        img2.putdata(data)
+        out = io.BytesIO()
+        fmt = "JPEG" if ext in (".jpg", ".jpeg") else ("PNG" if ext == ".png" else "WEBP")
+        save_kw = {"format": fmt}
+        if fmt == "JPEG":
+            save_kw["quality"] = JPEG_QUALITY
+            save_kw["optimize"] = True
+        elif fmt == "WEBP":
+            save_kw["quality"] = 85
+        img2.save(out, **save_kw)
+        result = out.getvalue()
+        if len(result) > MAX_UPLOAD_SIZE and fmt == "JPEG":
+            out2 = io.BytesIO()
+            img2.save(out2, format="JPEG", quality=60, optimize=True)
+            result = out2.getvalue()
+        return result
+    except Exception:
+        return contents
+
+_UPLOAD_ATTEMPTS: dict[str, list[float]] = {}
+_MAX_UPLOADS_PER_MIN = 10
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...), user: dict = Depends(require_user)):
+    ip = file.headers.get("x-forwarded-for", "unknown")
+    now = time.time()
+    attempts = [t for t in _UPLOAD_ATTEMPTS.get(ip, []) if now - t < 60]
+    _UPLOAD_ATTEMPTS[ip] = attempts
+    if len(attempts) >= _MAX_UPLOADS_PER_MIN:
+        raise HTTPException(status_code=429, detail="上传过于频繁，请稍后再试")
+    attempts.append(now)
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"不支持的文件格式: {ext}")
+    contents = await file.read()
+    if len(contents) > MAX_UPLOAD_SIZE * 2:
+        raise HTTPException(status_code=413, detail="文件过大，最大允许 20MB（压缩前）")
+    contents = _process_image(contents, ext)
+    if len(contents) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="压缩后仍超过 10MB，请上传更小的图片")
     filename = f"{uuid.uuid4().hex}{ext}"
+    user_dir = os.path.join(DATA_DIR, "uploads", user["uid"])
+    os.makedirs(user_dir, exist_ok=True)
     filepath = os.path.join(user_dir, filename)
     with open(filepath, "wb") as f:
         f.write(contents)
@@ -201,11 +300,16 @@ def get_user_profile(uid: str, db: Session = Depends(get_db)):
     return {
         "uid": user.uid,
         "username": user.username,
+        "avatar": user.avatar,
         "boards": [
             {
                 "id": b.id, "name": b.name, "icon": b.icon,
                 "description": b.description, "card_label": b.card_label,
                 "cards_label": b.cards_label,
+                "group_label": b.group_label,
+                "groups_label": b.groups_label,
+                "board_type": b.board_type,
+                "field_config": json.loads(b.field_config or "{}"),
                 "cards_count": db.query(Person).filter(Person.board_id == b.id).count(),
             }
             for b in public_boards

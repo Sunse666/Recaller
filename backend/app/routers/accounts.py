@@ -57,7 +57,7 @@ def update_account(person_id: int, account_id: int, data: schemas.AccountUpdate,
         Account.id == account_id, Account.person_id == person_id
     ).first()
     if not a:
-        raise HTTPException(status_code=404, detail="账号不存在")
+        raise HTTPException(status_code=404, detail="关联账号不存在")
     changed = {}
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(a, field, val); changed[field] = True
@@ -71,7 +71,7 @@ def update_account(person_id: int, account_id: int, data: schemas.AccountUpdate,
 def delete_account(person_id: int, account_id: int, db: Session = Depends(get_db), user: dict = Depends(require_user)):
     a = db.query(Account).filter(Account.id == account_id, Account.person_id == person_id).first()
     if not a:
-        raise HTTPException(status_code=404, detail="账号不存在")
+        raise HTTPException(status_code=404, detail="关联账号不存在")
     info = {"person_id": person_id, "type": a.account_type, "identifier": a.account_identifier}
     db.delete(a)
     audit_log(db, user["username"], "delete", "account", account_id, info)
@@ -85,7 +85,7 @@ def add_nickname_history(
 ):
     a = db.query(Account).filter(Account.id == account_id, Account.person_id == person_id).first()
     if not a:
-        raise HTTPException(status_code=404, detail="账号不存在")
+        raise HTTPException(status_code=404, detail="关联账号不存在")
     h = AccountNicknameHistory(account_id=account_id, nickname=data.nickname, avatar=data.avatar, changed_at=data.changed_at)
     db.add(h); db.flush()
     audit_log(db, user["username"], "create", "nickname_history", h.id, {"account_id": account_id, "nickname": data.nickname})
@@ -114,7 +114,7 @@ def remove_nickname_history(
 def list_memberships(person_id: int, account_id: int, db: Session = Depends(get_db)):
     a = db.query(Account).filter(Account.id == account_id, Account.person_id == person_id).first()
     if not a:
-        raise HTTPException(status_code=404, detail="账号不存在")
+        raise HTTPException(status_code=404, detail="关联账号不存在")
     memberships = (
         db.query(GroupMembership).options(joinedload(GroupMembership.group))
         .filter(GroupMembership.account_id == account_id)

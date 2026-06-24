@@ -1,10 +1,30 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { api } from '../../api/client'
 import { useBoardStore } from '../../stores/boards'
 import { useLabels } from '../../utils/labels'
 
+const boardStoreLocal = useBoardStore()
 const labels = useLabels()
+const boardType = computed(() => boardStoreLocal.currentBoard?.board_type || 'image')
+const isImage = computed(() => boardType.value === 'image')
+const isFriend = computed(() => boardType.value === 'friend')
+const isShuoshuo = computed(() => boardType.value === 'shuoshuo')
+
+const T = computed(() => {
+  if (isImage.value) return {
+    remarkLabel: '来源', signatureLabel: '原图地址', locationLabel: '原作者',
+    notesLabel: '图片描述', cardNameLabel: '图片名称',
+    importanceLabel: '评分', accountManageLabel: '',
+  }
+  if (isShuoshuo.value) return {
+    cardNameLabel: '标题', notesLabel: '内容',
+    remarkLabel: '', signatureLabel: '', locationLabel: '', accountManageLabel: '',
+  }
+  return {}
+})
+const tl = (key) => key in T.value ? T.value[key] : labels[key]
+
 const persons = ref([])
 const allAccounts = ref({}) // personId -> accounts[]
 const loading = ref(false)
@@ -21,6 +41,7 @@ const emptyForm = () => ({
   signature: '',
   location: '',
   avatar: '',
+  card_bg: '',
   circle_tags: [],
   impression_tags: [],
   importance: 0,
@@ -75,6 +96,7 @@ async function goEdit(p) {
     signature: p.signature || '',
     location: p.location || '',
     avatar: p.avatar || '',
+    card_bg: p.card_bg || '',
     circle_tags: [...(p.circle_tags || [])],
     impression_tags: [...(p.impression_tags || [])],
     importance: p.importance || 0,
@@ -233,31 +255,35 @@ onMounted(loadPersons)
         <div class="bg-white rounded-xl p-6 space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-xs text-gray-500 mb-1 block">{{ labels.cardNameLabel }}</label>
+              <label class="text-xs text-gray-500 mb-1 block">{{ tl('cardNameLabel') || labels.cardNameLabel }}</label>
               <input v-model="form.name" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
-            <div>
-              <label class="text-xs text-gray-500 mb-1 block">{{ labels.remarkLabel }}</label>
+            <div v-if="!isShuoshuo">
+              <label class="text-xs text-gray-500 mb-1 block">{{ tl('remarkLabel') || labels.remarkLabel }}</label>
               <input v-model="form.remark" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
-            <div class="col-span-2">
-              <label class="text-xs text-gray-500 mb-1 block">{{ labels.signatureLabel }}</label>
+            <div v-if="!isShuoshuo" class="col-span-2">
+              <label class="text-xs text-gray-500 mb-1 block">{{ tl('signatureLabel') || labels.signatureLabel }}</label>
               <input v-model="form.signature" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
-            <div>
-              <label class="text-xs text-gray-500 mb-1 block">{{ labels.locationLabel }}</label>
+            <div v-if="!isShuoshuo">
+              <label class="text-xs text-gray-500 mb-1 block">{{ tl('locationLabel') || labels.locationLabel }}</label>
               <input v-model="form.location" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
-            <div>
+            <div v-if="isFriend">
               <label class="text-xs text-gray-500 mb-1 block">{{ labels.birthdayLabel }}</label>
-              <input v-model="form.birthday" placeholder="{{ labels.birthdayPlaceholder }}" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+              <input v-model="form.birthday" :placeholder="labels.birthdayPlaceholder" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
             <div class="col-span-2">
               <label class="text-xs text-gray-500 mb-1 block">{{ labels.avatarLabel }}</label>
               <input v-model="form.avatar" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
-            <div>
-              <label class="text-xs text-gray-500 mb-1 block">{{ labels.importanceLabel }}</label>
+            <div v-if="!isShuoshuo" class="col-span-2">
+              <label class="text-xs text-gray-500 mb-1 block">卡片背景 URL</label>
+              <input v-model="form.card_bg" placeholder="卡片背景图片链接" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+            </div>
+            <div v-if="!isShuoshuo">
+              <label class="text-xs text-gray-500 mb-1 block">{{ tl('importanceLabel') || labels.importanceLabel }}</label>
               <select v-model.number="form.importance" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none">
                 <option :value="0">{{ labels.importanceNone }}</option>
                 <option :value="1">⭐</option>
@@ -283,7 +309,7 @@ onMounted(loadPersons)
             </div>
           </div>
 
-          <div>
+          <div v-if="isFriend">
             <label class="text-xs text-gray-500 mb-1 block">{{ labels.impressionTagsLabel }}</label>
             <div class="flex gap-2 mb-2">
               <input v-model="impressionInput" @keyup.enter="addImpressionTag" :placeholder="labels.tagPlaceholder" class="flex-1 px-3 py-1.5 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
@@ -298,11 +324,11 @@ onMounted(loadPersons)
           </div>
 
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">{{ labels.notesLabel }}</label>
+            <label class="text-xs text-gray-500 mb-1 block">{{ tl('notesLabel') || labels.notesLabel }}</label>
             <textarea v-model="form.notes" rows="3" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary resize-none"></textarea>
           </div>
 
-          <div v-if="view === 'edit'" class="border-t border-pink-100 pt-4 mt-4">
+          <div v-if="view === 'edit' && isFriend" class="border-t border-pink-100 pt-4 mt-4">
             <h3 class="font-bold text-sm mb-3">{{ labels.tableAccounts }}{{ labels.cardManage }}</h3>
 
             <div v-if="accounts.length > 0" class="space-y-2 mb-4">

@@ -17,10 +17,11 @@ class BoardCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     icon: Optional[str] = Field(default=None, max_length=10)
     description: Optional[str] = Field(default=None, max_length=200)
-    card_label: str = Field(default="群友", max_length=50)
-    cards_label: str = Field(default="群友们", max_length=50)
-    group_label: str = Field(default="群", max_length=50)
-    groups_label: str = Field(default="群组", max_length=50)
+    card_label: str = Field(default="图片", max_length=50)
+    cards_label: str = Field(default="图片", max_length=50)
+    group_label: str = Field(default="图组", max_length=50)
+    groups_label: str = Field(default="图组", max_length=50)
+    board_type: str = Field(default="image", max_length=20)
     field_config: dict = {}
     is_public: bool = False
     sort_order: int = 0
@@ -33,6 +34,7 @@ class BoardUpdate(BaseModel):
     cards_label: Optional[str] = Field(default=None, max_length=50)
     group_label: Optional[str] = Field(default=None, max_length=50)
     groups_label: Optional[str] = Field(default=None, max_length=50)
+    board_type: Optional[str] = Field(default=None, max_length=20)
     field_config: Optional[dict] = None
     is_public: Optional[bool] = None
     sort_order: Optional[int] = None
@@ -47,6 +49,7 @@ class BoardResponse(BaseModel):
     cards_label: str
     group_label: str
     groups_label: str
+    board_type: str
     field_config: dict
     is_public: bool
     sort_order: int
@@ -59,6 +62,7 @@ class PersonCreate(BaseModel):
     signature: Optional[str] = Field(default=None, max_length=200)
     location: Optional[str] = Field(default=None, max_length=100)
     avatar: Optional[str] = Field(default=None, max_length=500)
+    card_bg: Optional[str] = Field(default=None, max_length=500)
     circle_tags: List[str] = []
     impression_tags: List[str] = []
     importance: int = Field(default=0, ge=0, le=5, description="重要性 0-5")
@@ -72,6 +76,7 @@ class PersonUpdate(BaseModel):
     signature: Optional[str] = Field(default=None, max_length=200)
     location: Optional[str] = Field(default=None, max_length=100)
     avatar: Optional[str] = Field(default=None, max_length=500)
+    card_bg: Optional[str] = Field(default=None, max_length=500)
     circle_tags: Optional[List[str]] = None
     impression_tags: Optional[List[str]] = None
     importance: Optional[int] = Field(default=None, ge=0, le=5)
@@ -85,6 +90,7 @@ class PersonBrief(BaseModel):
     remark: Optional[str] = None
     signature: Optional[str] = None
     avatar: Optional[str] = None
+    card_bg: Optional[str] = None
     circle_tags: List[str] = []
     impression_tags: List[str] = []
     importance: int = 0
@@ -99,6 +105,7 @@ class PersonDetail(BaseModel):
     signature: Optional[str] = None
     location: Optional[str] = None
     avatar: Optional[str] = None
+    card_bg: Optional[str] = None
     circle_tags: List[str] = []
     impression_tags: List[str] = []
     importance: int = 0

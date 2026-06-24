@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api/client'
 import { useLabels } from '../utils/labels'
@@ -12,6 +12,10 @@ const accounts = ref([])
 const meetings = ref([])
 const relations = ref([])
 
+const ownerUid = computed(() => route.params.uid)
+const personBoardId = computed(() => parseInt(route.params.boardId) || 0)
+const boardType = ref('image')
+
 const notFound = ref(false)
 const loading = ref(true)
 
@@ -19,14 +23,29 @@ async function loadPerson() {
   const name = route.params.personName
   loading.value = true
   notFound.value = false
-  const persons = await api.listPersons(name)
-  const found = persons.find(p => p.name === name || p.remark === name)
+  let boardIds = null
+  let boardMap = {}
+  if (ownerUid.value) {
+    try {
+      const profile = await api.getUserProfile(ownerUid.value)
+      const boards = profile.boards || []
+      boardIds = boards.map(b => b.id)
+      boards.forEach(b => { boardMap[b.id] = b.board_type || 'image' })
+    } catch { }
+  }
+  const all = await api.listPersons(name)
+  const found = all.find(p => {
+    if (!(p.name === name || p.remark === name)) return false
+    if (boardIds) return boardIds.includes(p.board_id)
+    return true
+  })
   if (!found) {
     notFound.value = true
     loading.value = false
     return
   }
   person.value = await api.getPerson(found.id)
+  boardType.value = boardMap[found.board_id] || 'image'
   accounts.value = await api.listAccounts(found.id)
   meetings.value = await api.listMeetings(found.id)
   relations.value = await api.listRelations(found.id)
@@ -34,7 +53,11 @@ async function loadPerson() {
 }
 
 function goBack() {
-  router.push('/')
+  if (ownerUid.value && personBoardId.value) {
+    router.push(`/${ownerUid.value}`)
+  } else {
+    router.push('/')
+  }
 }
 
 const headerHidden = ref(false)
@@ -112,7 +135,7 @@ watch(() => route.params.personName, loadPerson)
         </div>
       </div>
 
-      <section class="bg-white rounded-xl p-6 shadow-sm border border-pink-50">
+      <section v-if="boardType === 'friend'" class="bg-white rounded-xl p-6 shadow-sm border border-pink-50">
         <h3 class="font-bold mb-4 text-primary">{{ labels.personDetailAccounts }}</h3>
         <div v-if="accounts.length === 0" class="text-sm text-gray-400">{{ labels.noAccounts }}</div>
         <div v-for="a in accounts" :key="a.id" class="flex items-center gap-3 py-2 border-b border-pink-50 last:border-0">
@@ -137,7 +160,7 @@ watch(() => route.params.personName, loadPerson)
       <section v-if="relations.length > 0" class="bg-white rounded-xl p-6 shadow-sm border border-pink-50">
         <h3 class="font-bold mb-4 text-primary">{{ labels.personDetailRelations }}</h3>
         <div v-for="r in relations" :key="r.id" class="text-sm text-gray-600 py-1">
-          {{ r.relation_type || '关联' }}
+          {{ r.relation_type || labels.personDetailRelationFallback }}
         </div>
       </section>
 

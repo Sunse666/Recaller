@@ -8,6 +8,8 @@ const props = defineProps({
 defineEmits(['click'])
 
 const initials = computed(() => (props.person.name || '?')[0])
+const isBgColor = computed(() => props.image && props.image.startsWith('bg:'))
+const bgColor = computed(() => isBgColor.value ? props.image.slice(3) : null)
 </script>
 
 <template>
@@ -16,16 +18,17 @@ const initials = computed(() => (props.person.name || '?')[0])
     class="group relative w-full overflow-hidden cursor-pointer rounded-xl shadow-md hover:shadow-xl transition-shadow duration-300"
   >
     <img
-      v-if="image"
+      v-if="image && !isBgColor"
       :src="image"
       class="w-full h-auto block"
     />
     <div
       v-else
-      class="w-full bg-gradient-to-br from-pink-100 to-blue-50 flex items-center justify-center"
-      style="aspect-ratio: 3/4"
+      class="w-full flex items-center justify-center"
+      :style="{ backgroundColor: bgColor || undefined, aspectRatio: '3/4' }"
+      :class="{ 'bg-gradient-to-br from-pink-100 to-blue-50': !bgColor }"
     >
-      <span class="text-6xl font-bold text-primary/30">{{ initials }}</span>
+      <span class="text-6xl font-bold" :class="bgColor ? 'text-white/40' : 'text-primary/30'">{{ initials }}</span>
     </div>
 
     <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent opacity-90 group-hover:opacity-100 transition-opacity" />

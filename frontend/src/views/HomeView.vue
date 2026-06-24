@@ -148,8 +148,8 @@ function onSearch(val) {
   loadPersons()
 }
 
-function goDetail(name) {
-  router.push(`/${encodeURIComponent(name)}`)
+function goDetail(p) {
+  router.push(`/1/${p.board_id || 0}/${encodeURIComponent(p.name)}`)
 }
 
 let resizeTimer
@@ -213,10 +213,13 @@ onMounted(() => {
       <div class="px-5 py-3.5 flex items-center">
         <h1 class="text-lg font-bold text-primary shrink-0">{{ labels.appTitle }}</h1>
         <div class="flex-1 flex justify-center px-4">
-          <SearchBar @search="onSearch" class="w-full max-w-md" />
+          <SearchBar @search="onSearch" :placeholder="labels.searchCard" class="w-full max-w-md" />
         </div>
-        <router-link v-if="auth.isLoggedIn" :to="`/${auth.uid}`" class="shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center text-white text-sm font-bold shadow-sm hover:shadow-md transition">
-          {{ auth.username[0].toUpperCase() }}
+        <router-link v-if="auth.isLoggedIn" :to="`/${auth.uid}`" class="shrink-0">
+          <img v-if="auth.avatar" :src="auth.avatar" class="w-8 h-8 rounded-full object-cover shadow-sm hover:shadow-md transition" />
+          <div v-else class="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center text-white text-sm font-bold shadow-sm hover:shadow-md transition">
+            {{ auth.username[0].toUpperCase() }}
+          </div>
         </router-link>
         <router-link v-else to="/login" class="shrink-0 text-sm text-gray-400 hover:text-primary transition">{{ labels.homeLogin }}</router-link>
       </div>
@@ -225,7 +228,7 @@ onMounted(() => {
     <main class="relative z-10 px-0 py-8">
       <div class="mb-8 px-2">
         <h2 class="text-2xl font-bold text-gray-900">
-          {{ search ? `搜索「${search}」` : labels.homeTitle }}
+          {{ search ? labels.searchPrefix + '「' + search + '」' : labels.homeTitle }}
         </h2>
         <p class="text-primary/70 mt-1 text-sm">{{ labels.homeCount(persons.length) }}</p>
       </div>

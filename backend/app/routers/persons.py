@@ -25,7 +25,7 @@ def _get_board_id(user: dict, db: Session, board_id: int | None = None) -> int |
 def _person_to_brief(p: Person) -> schemas.PersonBrief:
     return schemas.PersonBrief(
         id=p.id, name=p.name, remark=p.remark, signature=p.signature,
-        avatar=p.avatar,
+        avatar=p.avatar, card_bg=p.card_bg,
         circle_tags=json.loads(p.circle_tags or "[]"),
         impression_tags=json.loads(p.impression_tags or "[]"),
         importance=p.importance,
@@ -37,7 +37,7 @@ def _person_to_brief(p: Person) -> schemas.PersonBrief:
 def _person_to_detail(p: Person) -> schemas.PersonDetail:
     return schemas.PersonDetail(
         id=p.id, name=p.name, remark=p.remark, signature=p.signature,
-        location=p.location, avatar=p.avatar,
+        location=p.location, avatar=p.avatar, card_bg=p.card_bg,
         circle_tags=json.loads(p.circle_tags or "[]"),
         impression_tags=json.loads(p.impression_tags or "[]"),
         importance=p.importance, notes=decrypt(p.notes), birthday=p.birthday,
@@ -65,7 +65,9 @@ def list_persons(
             | (Account.current_nickname.ilike(like))
         ).distinct()
 
-    if user is None:
+    if board_id:
+        pass
+    elif user is None:
         public_ids = [b.id for b in db.query(Board).filter(Board.is_public == True).all()]
         query = query.filter(Person.board_id.in_(public_ids))
     elif user["role"] != "admin":
@@ -85,7 +87,7 @@ def list_persons(
 def get_person(person_id: int, db: Session = Depends(get_db)):
     p = db.query(Person).get(person_id)
     if not p:
-        raise HTTPException(status_code=404, detail="群友不存在")
+        raise HTTPException(status_code=404, detail="条目不存在")
     return _person_to_detail(p)
 
 
@@ -97,6 +99,7 @@ def create_person(data: schemas.PersonCreate, db: Session = Depends(get_db), use
     p = Person(
         board_id=bid, name=data.name, remark=data.remark,
         signature=data.signature, location=data.location, avatar=data.avatar,
+        card_bg=data.card_bg,
         circle_tags=json.dumps(data.circle_tags, ensure_ascii=False),
         impression_tags=json.dumps(data.impression_tags, ensure_ascii=False),
         importance=data.importance, notes=encrypt(data.notes), birthday=data.birthday,
@@ -111,7 +114,7 @@ def create_person(data: schemas.PersonCreate, db: Session = Depends(get_db), use
 def update_person(person_id: int, data: schemas.PersonUpdate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
     p = db.query(Person).get(person_id)
     if not p:
-        raise HTTPException(status_code=404, detail="群友不存在")
+        raise HTTPException(status_code=404, detail="条目不存在")
     changed = {}
     for field, val in data.model_dump(exclude_unset=True).items():
         if field == "notes" and val is not None:
@@ -130,7 +133,7 @@ def update_person(person_id: int, data: schemas.PersonUpdate, db: Session = Depe
 def delete_person(person_id: int, db: Session = Depends(get_db), user: dict = Depends(require_user)):
     p = db.query(Person).get(person_id)
     if not p:
-        raise HTTPException(status_code=404, detail="群友不存在")
+        raise HTTPException(status_code=404, detail="条目不存在")
     name = p.name
     db.delete(p)
     audit_log(db, user["username"], "delete", "person", person_id, {"name": name})
@@ -141,7 +144,7 @@ def delete_person(person_id: int, db: Session = Depends(get_db), user: dict = De
 def list_relations(person_id: int, db: Session = Depends(get_db)):
     p = db.query(Person).get(person_id)
     if not p:
-        raise HTTPException(status_code=404, detail="群友不存在")
+        raise HTTPException(status_code=404, detail="条目不存在")
     o = db.query(PersonRelation).filter(PersonRelation.person_id_1 == person_id).all()
     i = db.query(PersonRelation).filter(PersonRelation.person_id_2 == person_id).all()
     return o + i

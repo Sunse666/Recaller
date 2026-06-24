@@ -1,162 +1,210 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useBoardStore } from '../../stores/boards'
-import { useLabels } from '../../utils/labels'
+import { useLabels, DEF } from '../../utils/labels'
 
 const boardStore = useBoardStore()
 const labels = useLabels()
 
-const form = ref({
-  name: '',
-  icon: '',
-  description: '',
-  card_label: '',
-  cards_label: '',
-  group_label: '',
-  groups_label: '',
-  appTitle: '',
-  is_public: false,
+const SKIP = new Set(['name','icon','description','appTitle','is_public',
+  'card_label','cards_label','group_label','groups_label',
+  'homeTitlePrefix','countUnit','manageSuffix','addPrefix','searchPrefix',
+  'remarkLabel','signatureLabel','locationLabel','birthdayLabel','birthdayPlaceholder',
+  'avatarLabel','importanceLabel','importanceNone','circleTagsLabel','impressionTagsLabel','notesLabel','accountManageLabel'])
+const EXTRA = Object.keys(DEF).filter(k => !SKIP.has(k) && !k.startsWith('settings') && !k.startsWith('images') && !k.startsWith('appName') && !k.startsWith('login') && !k.startsWith('register') && !k.startsWith('username') && !k.startsWith('password') && !k.startsWith('confirmPassword') && !k.startsWith('avatarUpload') && !k.startsWith('changeAvatar') && !k.startsWith('changeUsername'))
+
+const form = ref({ name:'',icon:'',description:'',appTitle:'',is_public:false,
+  card_label:'',cards_label:'',group_label:'',groups_label:'',
+  homeTitlePrefix:'',countUnit:'',manageSuffix:'',addPrefix:'',searchPrefix:'',
+  remarkLabel:'',signatureLabel:'',locationLabel:'',birthdayLabel:'',birthdayPlaceholder:'',
+  avatarLabel:'',importanceLabel:'',importanceNone:'',
+  circleTagsLabel:'',impressionTagsLabel:'',notesLabel:'',accountManageLabel:'',
+  ...Object.fromEntries(EXTRA.map(k => [k, ''])),
 })
 const saving = ref(false)
 const message = ref('')
+const showFrameWords = ref(false)
+const showFormLabels = ref(false)
+const showAll = ref(false)
 
 function loadBoard() {
   const b = boardStore.currentBoard
   if (!b) return
   const fc = typeof b.field_config === 'object' ? b.field_config : {}
-  form.value = {
-    name: b.name || '',
-    icon: b.icon || '',
-    description: b.description || '',
-    card_label: b.card_label || '群友',
-    cards_label: b.cards_label || '群友们',
-    group_label: b.group_label || '群',
-    groups_label: b.groups_label || '群组',
-    appTitle: fc.appTitle || '',
-    is_public: b.is_public || false,
+  const boardFields = ['name', 'icon', 'description', 'card_label', 'cards_label', 'group_label', 'groups_label']
+  for (const k of boardFields) form.value[k] = (b[k] || '')
+  for (const k of EXTRA) form.value[k] = fc[k] || ''
+  for (const k of Object.keys(form.value)) {
+    if (k !== 'is_public' && form.value[k] === '' && fc[k]) form.value[k] = fc[k]
   }
+  form.value.is_public = b.is_public || false
 }
+
+function pv(key) { return form.value[key] || DEF[key] || '' }
 
 async function doSave() {
-  saving.value = true
-  message.value = ''
+  saving.value = true; message.value = ''
   try {
+    const fc = {}
+    for (const k of Object.keys(form.value)) {
+      if (!['name', 'icon', 'description', 'card_label', 'cards_label', 'group_label', 'groups_label', 'is_public'].includes(k)) {
+        if (form.value[k]) fc[k] = form.value[k]
+      }
+    }
     await boardStore.updateBoard(boardStore.currentBoardId, {
-      name: form.value.name,
-      icon: form.value.icon || null,
-      description: form.value.description || null,
-      card_label: form.value.card_label,
-      cards_label: form.value.cards_label,
-      group_label: form.value.group_label,
-      groups_label: form.value.groups_label,
-      field_config: { appTitle: form.value.appTitle || undefined },
-      is_public: form.value.is_public,
+      name: form.value.name, icon: form.value.icon || null, description: form.value.description || null,
+      card_label: form.value.card_label, cards_label: form.value.cards_label,
+      group_label: form.value.group_label, groups_label: form.value.groups_label,
+      field_config: fc, is_public: form.value.is_public,
     })
     message.value = labels.value.saveSuccess
-    // Refresh labels by refetching
     await boardStore.fetchBoards()
-  } catch (e) {
-    message.value = '错误: ' + e.message
-  } finally {
-    saving.value = false
-  }
+  } catch (e) { message.value = '错误: ' + e.message }
+  finally { saving.value = false }
 }
 
-onMounted(async () => {
-  await boardStore.fetchBoards()
-  loadBoard()
-})
+const deleting = ref(false)
+async function doDeleteBoard() {
+  if (!confirm(labels.value.deleteBoardConfirm)) return
+  deleting.value = true
+  try {
+    await boardStore.deleteBoard(boardStore.currentBoardId)
+    if (boardStore.boards.length > 0) boardStore.setCurrentBoard(boardStore.boards[0].id)
+    message.value = '画板已删除'
+    setTimeout(() => { loadBoard(); message.value = '' }, 500)
+  } catch (e) { message.value = '删除失败: ' + e.message }
+  finally { deleting.value = false }
+}
+
+onMounted(async () => { await boardStore.fetchBoards(); loadBoard() })
 </script>
 
 <template>
   <div class="max-w-lg">
-    <h2 class="text-lg font-bold text-gray-900 mb-6">画板设置</h2>
+    <h2 class="text-lg font-bold text-gray-900 mb-6">{{ labels.settingsTitle }}</h2>
 
     <div class="bg-white rounded-xl border border-pink-100 p-6 space-y-4">
       <div>
-        <label class="text-xs text-gray-500 mb-1 block">画板名称</label>
+        <label class="text-xs text-gray-500 mb-1 block">{{ labels.boardNameLabel }}</label>
         <input v-model="form.name" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
       </div>
-
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="text-xs text-gray-500 mb-1 block">图标 (emoji)</label>
-          <input v-model="form.icon" placeholder="👥" maxlength="2" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+          <label class="text-xs text-gray-500 mb-1 block">{{ labels.iconLabel }}</label>
+          <input v-model="form.icon" placeholder="🖼️" maxlength="2" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
         </div>
         <div>
-          <label class="text-xs text-gray-500 mb-1 block">描述</label>
+          <label class="text-xs text-gray-500 mb-1 block">{{ labels.descriptionLabel }}</label>
           <input v-model="form.description" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
         </div>
       </div>
-
       <div>
-        <label class="text-xs text-gray-500 mb-1 block">应用标题</label>
+        <label class="text-xs text-gray-500 mb-1 block">{{ labels.appTitleLabel }}</label>
         <input v-model="form.appTitle" :placeholder="labels.appTitle" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
-        <p class="text-xs text-gray-400 mt-1">显示在首页顶部，留空则使用默认「{{ labels.appTitle }}」</p>
       </div>
 
       <hr class="border-pink-50" />
 
       <div>
-        <label class="text-xs text-gray-500 mb-1 block">卡片单数标签</label>
-        <input v-model="form.card_label" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
-        <p class="text-xs text-gray-400 mt-1">默认"群友"，修改后所有「群友管理」「添加群友」等文字同步变化</p>
+        <label class="text-xs text-gray-500 mb-1 block">{{ labels.cardSingleLabel }}</label>
+        <input v-model="form.card_label" :placeholder="DEF.card_label" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
       </div>
-
       <div>
-        <label class="text-xs text-gray-500 mb-1 block">卡片复数标签</label>
-        <input v-model="form.cards_label" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
-        <p class="text-xs text-gray-400 mt-1">默认"群友们"，如「我认识的群友们」「3位群友」</p>
+        <label class="text-xs text-gray-500 mb-1 block">{{ labels.cardPluralLabel }}</label>
+        <input v-model="form.cards_label" :placeholder="DEF.cards_label" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
       </div>
-
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="text-xs text-gray-500 mb-1 block">群单数标签</label>
-          <input v-model="form.group_label" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
-          <p class="text-xs text-gray-400 mt-1">默认"群"</p>
+          <label class="text-xs text-gray-500 mb-1 block">{{ labels.groupSingleLabel }}</label>
+          <input v-model="form.group_label" :placeholder="DEF.group_label" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
         </div>
         <div>
-          <label class="text-xs text-gray-500 mb-1 block">群复数标签</label>
-          <input v-model="form.groups_label" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
-          <p class="text-xs text-gray-400 mt-1">默认"群组"</p>
+          <label class="text-xs text-gray-500 mb-1 block">{{ labels.groupPluralLabel }}</label>
+          <input v-model="form.groups_label" :placeholder="DEF.groups_label" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+        </div>
+      </div>
+
+      <hr class="border-pink-50" />
+
+      <button @click="showFrameWords = !showFrameWords" class="flex items-center gap-2 text-sm text-primary hover:underline">
+        {{ showFrameWords ? '▾' : '▸' }} {{ labels.frameWordsTitle }}
+      </button>
+      <div v-if="showFrameWords" class="grid grid-cols-2 gap-3 pl-2">
+        <div v-for="item in [
+          { key: 'homeTitlePrefix', d: DEF.homeTitlePrefix || '(空)' },
+          { key: 'countUnit', d: DEF.countUnit },
+          { key: 'manageSuffix', d: DEF.manageSuffix },
+          { key: 'addPrefix', d: DEF.addPrefix },
+          { key: 'searchPrefix', d: DEF.searchPrefix },
+        ]" :key="item.key">
+          <label class="text-xs text-gray-400 mb-1 block">"{{ item.d }}" →</label>
+          <input v-model="form[item.key]" :placeholder="DEF[item.key]" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+        </div>
+      </div>
+
+      <button @click="showFormLabels = !showFormLabels" class="flex items-center gap-2 text-sm text-primary hover:underline">
+        {{ showFormLabels ? '▾' : '▸' }} {{ labels.formLabelsTitle }}
+      </button>
+      <div v-if="showFormLabels" class="grid grid-cols-2 gap-3 pl-2">
+        <div v-for="item in [
+          { key: 'remarkLabel', d: DEF.remarkLabel }, { key: 'signatureLabel', d: DEF.signatureLabel },
+          { key: 'locationLabel', d: DEF.locationLabel }, { key: 'birthdayLabel', d: DEF.birthdayLabel },
+          { key: 'birthdayPlaceholder', d: DEF.birthdayPlaceholder }, { key: 'avatarLabel', d: DEF.avatarLabel },
+          { key: 'importanceLabel', d: DEF.importanceLabel }, { key: 'importanceNone', d: DEF.importanceNone },
+          { key: 'circleTagsLabel', d: DEF.circleTagsLabel }, { key: 'impressionTagsLabel', d: DEF.impressionTagsLabel },
+          { key: 'notesLabel', d: DEF.notesLabel }, { key: 'accountManageLabel', d: DEF.accountManageLabel },
+        ]" :key="item.key">
+          <label class="text-xs text-gray-400 mb-1 block">"{{ item.d }}" →</label>
+          <input v-model="form[item.key]" :placeholder="DEF[item.key]" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+        </div>
+      </div>
+
+      <button @click="showAll = !showAll" class="flex items-center gap-2 text-sm text-primary hover:underline">
+        {{ showAll ? '▾' : '▸' }} {{ labels.allTextTitle }}（{{ EXTRA.length }} 项）
+      </button>
+      <div v-if="showAll" class="grid grid-cols-2 gap-3 pl-2 max-h-96 overflow-y-auto">
+        <div v-for="k in EXTRA" :key="k">
+          <label class="text-xs text-gray-400 mb-1 block">{{ DEF[k] ? '"' + DEF[k] + '"' : '(动态)' }} → <code class="text-[10px]">{{ k }}</code></label>
+          <input v-model="form[k]" :placeholder="DEF[k] || ''" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
         </div>
       </div>
 
       <hr class="border-pink-50" />
 
       <div class="flex items-center gap-3">
-        <label class="text-xs text-gray-500">公开画板</label>
-        <button
-          type="button"
-          @click="form.is_public = !form.is_public"
-          :class="form.is_public ? 'bg-primary' : 'bg-gray-300'"
-          class="relative w-10 h-5 rounded-full transition-colors duration-200"
-        >
-          <span
-            :class="form.is_public ? 'translate-x-5' : 'translate-x-0.5'"
-            class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200"
-          />
-        </button>
-        <span class="text-xs text-gray-400">{{ form.is_public ? '任何人可见' : '仅自己可见' }}</span>
+        <span class="text-xs text-gray-500">{{ labels.publicBoardLabel }}</span>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" v-model="form.is_public" class="sr-only peer" />
+          <div class="w-9 h-5 bg-gray-300 peer-checked:bg-primary rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:start-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
+        </label>
+        <span class="text-xs text-gray-400">{{ form.is_public ? labels.publicVisible : labels.privateOnly }}</span>
       </div>
 
+      <div class="bg-blue-50/50 rounded-xl p-4 text-sm">
+        <p class="font-medium text-blue-700 mb-1">{{ labels.bannerImagesTitle }}</p>
+        <p class="text-xs text-blue-500 mb-2">{{ labels.bannerImagesHint }}</p>
+        <p class="text-xs text-gray-400">{{ labels.bannerImagesHelp }}</p>
+      </div>
+
+      <hr class="border-pink-50" />
+
       <div class="bg-pink-50/50 rounded-xl p-4 text-xs space-y-1 text-gray-500">
-        <p class="text-gray-600 font-medium mb-2">预览效果：</p>
-        <p>首页标题：<span class="text-gray-800">我认识的{{ form.cards_label || '...' }}</span></p>
-        <p>计数：<span class="text-gray-800">0 位{{ form.card_label || '...' }}</span></p>
-        <p>管理导航：<span class="text-gray-800">{{ form.card_label || '...' }}管理</span> / <span class="text-gray-800">{{ form.group_label || '...' }}管理</span></p>
-        <p>添加按钮：<span class="text-gray-800">+ 添加{{ form.card_label || '...' }}</span> / <span class="text-gray-800">+ 添加{{ form.group_label || '...' }}</span></p>
-        <p>搜索：<span class="text-gray-800">搜索{{ form.card_label || '...' }}...</span> / <span class="text-gray-800">搜索{{ form.group_label || '...' }}...</span></p>
-        <p>确认删除：<span class="text-gray-800">确定删除？这将同时删除该{{ form.card_label || '...' }}的所有账号。</span></p>
+        <p class="text-gray-600 font-medium mb-2">{{ labels.previewTitle }}：</p>
+        <p>首页标题：<span class="text-gray-800">{{ pv('homeTitlePrefix') }}{{ pv('cards_label') }}</span></p>
+        <p>计数：<span class="text-gray-800">0 {{ pv('countUnit') }}{{ pv('card_label') }}</span></p>
+        <p>导航：<span class="text-gray-800">{{ pv('card_label') }}{{ pv('manageSuffix') }}</span> / <span class="text-gray-800">{{ pv('group_label') }}{{ pv('manageSuffix') }}</span></p>
+        <p>按钮：<span class="text-gray-800">{{ pv('addPrefix') }}{{ pv('card_label') }}</span> / <span class="text-gray-800">{{ pv('addPrefix') }}{{ pv('group_label') }}</span></p>
+        <p>搜索：<span class="text-gray-800">{{ pv('searchPrefix') }}{{ pv('card_label') }}...</span></p>
       </div>
 
       <div class="flex items-center gap-3 pt-2">
-        <button
-          @click="doSave"
-          :disabled="saving"
+        <button @click="doSave" :disabled="saving"
           class="px-6 py-2 bg-primary text-white text-sm rounded-xl hover:bg-primary-dark disabled:opacity-50 transition"
         >{{ saving ? labels.saving : labels.save }}</button>
-        <span v-if="message" :class="message.includes('错误') ? 'text-red-500' : 'text-green-500'" class="text-sm">{{ message }}</span>
+        <button @click="doDeleteBoard" :disabled="deleting"
+          class="px-6 py-2 bg-red-400 text-white text-sm rounded-xl hover:bg-red-500 disabled:opacity-50 transition ml-auto"
+        >{{ deleting ? '...' : labels.deleteBoard }}</button>
+        <span v-if="message" :class="message.includes('错误') || message.includes('失败') ? 'text-red-500' : 'text-green-500'" class="text-sm">{{ message }}</span>
       </div>
     </div>
   </div>

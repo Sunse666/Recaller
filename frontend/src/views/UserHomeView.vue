@@ -100,12 +100,17 @@ watch(() => route.name, (name) => {
             <div class="flex gap-3 mt-3">
               <router-link
                 v-if="isOwner"
-                :to="`/${profileUid}/persons`"
+                :to="`/${profileUid}/user/persons`"
                 class="px-4 py-1.5 text-sm bg-primary text-white rounded-xl hover:bg-primary-dark transition"
               >{{ labels.adminButton }}</router-link>
               <router-link
                 v-if="isOwner"
-                :to="`/${profileUid}/settings`"
+                :to="`/${profileUid}/user/groups`"
+                class="px-4 py-1.5 text-sm border border-pink-100 text-gray-500 rounded-xl hover:bg-pink-50 transition"
+              >{{ labels.groupManage }}</router-link>
+              <router-link
+                v-if="isOwner"
+                :to="`/${profileUid}/user/settings`"
                 class="px-4 py-1.5 text-sm border border-pink-100 text-gray-500 rounded-xl hover:bg-pink-50 transition"
               >画板设置</router-link>
               <button
@@ -132,12 +137,17 @@ watch(() => route.name, (name) => {
             <div class="flex gap-3 mt-3">
               <router-link
                 v-if="isOwner"
-                :to="`/${profileUid}/persons`"
+                :to="`/${profileUid}/user/persons`"
                 class="px-4 py-1.5 text-sm bg-primary text-white rounded-xl hover:bg-primary-dark transition"
               >{{ labels.adminButton }}</router-link>
               <router-link
                 v-if="isOwner"
-                :to="`/${profileUid}/settings`"
+                :to="`/${profileUid}/user/groups`"
+                class="px-4 py-1.5 text-sm border border-pink-100 text-gray-500 rounded-xl hover:bg-pink-50 transition"
+              >{{ labels.groupManage }}</router-link>
+              <router-link
+                v-if="isOwner"
+                :to="`/${profileUid}/user/settings`"
                 class="px-4 py-1.5 text-sm border border-pink-100 text-gray-500 rounded-xl hover:bg-pink-50 transition"
               >画板设置</router-link>
               <button

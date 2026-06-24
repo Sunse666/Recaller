@@ -6,6 +6,7 @@ export const useAuthStore = defineStore('auth', {
     username: localStorage.getItem('username') || '',
     role: localStorage.getItem('role') || '',
     uid: localStorage.getItem('uid') || '',
+    avatar: localStorage.getItem('avatar') || '',
   }),
   getters: {
     isLoggedIn: (state) => !!state.username,
@@ -20,6 +21,7 @@ export const useAuthStore = defineStore('auth', {
       localStorage.setItem('username', data.username)
       localStorage.setItem('role', data.role || '')
       localStorage.setItem('uid', data.uid || '')
+      await this.checkAuth()  // get avatar
     },
     async register(username, password) {
       await api.register(username, password)
@@ -30,17 +32,21 @@ export const useAuthStore = defineStore('auth', {
         this.username = data.username
         this.role = data.role || ''
         this.uid = data.uid || ''
+        this.avatar = data.avatar || ''
         localStorage.setItem('username', data.username)
         localStorage.setItem('role', data.role || '')
         localStorage.setItem('uid', data.uid || '')
+        localStorage.setItem('avatar', data.avatar || '')
         return true
       } catch {
         this.username = ''
         this.role = ''
         this.uid = ''
+        this.avatar = ''
         localStorage.removeItem('username')
         localStorage.removeItem('role')
         localStorage.removeItem('uid')
+        localStorage.removeItem('avatar')
         return false
       }
     },
@@ -49,9 +55,23 @@ export const useAuthStore = defineStore('auth', {
       this.username = ''
       this.role = ''
       this.uid = ''
+      this.avatar = ''
       localStorage.removeItem('username')
       localStorage.removeItem('role')
       localStorage.removeItem('uid')
+      localStorage.removeItem('avatar')
+    },
+    async changeUsername(newUsername) {
+      const data = await api.changeUsername(newUsername)
+      this.username = data.username
+      localStorage.setItem('username', data.username)
+      return data
+    },
+    async uploadAvatar(file) {
+      const data = await api.uploadAvatar(file)
+      this.avatar = data.url
+      localStorage.setItem('avatar', data.url)
+      return data
     },
   },
 })

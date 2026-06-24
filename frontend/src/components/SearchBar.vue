@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 
+const props = defineProps({ placeholder: { type: String, default: '搜索...' } })
 const emit = defineEmits(['search'])
 const query = ref('')
 
@@ -17,7 +18,7 @@ watch(query, (val) => {
     <input
       v-model="query"
       type="text"
-      placeholder="搜索群友昵称、账号..."
+      :placeholder="props.placeholder"
       class="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl bg-pink-50 text-gray-900 placeholder-gray-400 border border-pink-100 outline-none focus:border-primary focus:bg-pink-50/50 transition-all"
     />
   </div>

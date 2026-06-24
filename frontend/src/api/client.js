@@ -29,6 +29,14 @@ export const api = {
   changePassword(old_password, new_password) {
     return request('/auth/change-password', { method: 'POST', body: JSON.stringify({ old_password, new_password }) })
   },
+  changeUsername(username) {
+    return request('/auth/change-username', { method: 'POST', body: JSON.stringify({ username }) })
+  },
+  uploadAvatar(file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request('/auth/avatar', { method: 'POST', body: formData, headers: {} })
+  },
 
   // upload
   upload(file) {

@@ -42,7 +42,7 @@ def list_groups(search: str = "", board_id: int = None, db: Session = Depends(ge
 def get_group(group_id: int, db: Session = Depends(get_db)):
     g = db.query(Group).get(group_id)
     if not g:
-        raise HTTPException(status_code=404, detail="群不存在")
+        raise HTTPException(status_code=404, detail="分组不存在")
     return _group_to_detail(g)
 
 
@@ -68,7 +68,7 @@ def create_group(data: schemas.GroupCreate, db: Session = Depends(get_db), user:
 def update_group(group_id: int, data: schemas.GroupUpdate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
     g = db.query(Group).get(group_id)
     if not g:
-        raise HTTPException(status_code=404, detail="群不存在")
+        raise HTTPException(status_code=404, detail="分组不存在")
     changed = {}
     for field, val in data.model_dump(exclude_unset=True).items():
         if field == "tags" and val is not None:
@@ -85,7 +85,7 @@ def update_group(group_id: int, data: schemas.GroupUpdate, db: Session = Depends
 def delete_group(group_id: int, db: Session = Depends(get_db), user: dict = Depends(require_user)):
     g = db.query(Group).get(group_id)
     if not g:
-        raise HTTPException(status_code=404, detail="群不存在")
+        raise HTTPException(status_code=404, detail="分组不存在")
     info = {"name": g.group_name, "number": g.group_number}
     db.delete(g)
     audit_log(db, user["username"], "delete", "group", group_id, info)
@@ -112,10 +112,10 @@ def list_group_members(group_id: int, db: Session = Depends(get_db)):
 def add_member(group_id: int, data: schemas.MembershipCreate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
     g = db.query(Group).get(group_id)
     if not g:
-        raise HTTPException(status_code=404, detail="群不存在")
+        raise HTTPException(status_code=404, detail="分组不存在")
     a = db.query(Account).get(data.account_id)
     if not a:
-        raise HTTPException(status_code=404, detail="账号不存在")
+        raise HTTPException(status_code=404, detail="关联账号不存在")
     existing = db.query(GroupMembership).filter(
         GroupMembership.account_id == data.account_id, GroupMembership.group_id == group_id,
     ).first()

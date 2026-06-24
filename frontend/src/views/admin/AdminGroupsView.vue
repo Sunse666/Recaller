@@ -133,38 +133,29 @@ onMounted(loadGroups)
         <input v-model="search" @input="loadGroups" :placeholder="labels.searchGroup" class="w-full max-w-sm px-4 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary focus:bg-pink-50/30 transition" />
       </div>
 
-      <div class="bg-white rounded-xl border border-pink-100 overflow-hidden">
-        <div v-if="loading" class="text-center text-gray-400 py-10">加载中...</div>
-        <table v-else-if="groups.length" class="w-full text-sm">
-          <thead class="bg-pink-50/30 text-gray-500 text-xs">
-            <tr>
-              <th class="text-left px-4 py-2.5 font-normal">{{ labels.tableGroupName }}</th>
-              <th class="text-left px-4 py-2.5 font-normal">{{ labels.tableGroupNumber }}</th>
-              <th class="text-left px-4 py-2.5 font-normal">{{ labels.tableGroupRemark }}</th>
-              <th class="text-left px-4 py-2.5 font-normal">{{ labels.tableGroupTags }}</th>
-              <th class="text-right px-4 py-2.5 font-normal">{{ labels.tableActions }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="g in groups" :key="g.id" class="border-t border-pink-50 hover:bg-pink-50/30">
-              <td class="px-4 py-3 font-medium">{{ g.group_name }}</td>
-              <td class="px-4 py-3 text-gray-500">{{ g.group_number }}</td>
-              <td class="px-4 py-3 text-gray-500">{{ g.remark || '-' }}</td>
-              <td class="px-4 py-3">
-                <span v-if="g.tags.length" class="flex gap-1">
-                  <span v-for="t in g.tags" :key="t" class="px-2 py-0.5 text-xs bg-green-50 text-green-600 rounded-full">{{ t }}</span>
-                </span>
-                <span v-else class="text-gray-300">-</span>
-              </td>
-              <td class="px-4 py-3 text-right">
-                <button @click="viewMembers(g)" class="text-gray-500 hover:underline text-xs mr-3">{{ labels.memberTitle }}</button>
-                <button @click="goEdit(g)" class="text-primary hover:underline text-xs mr-3">{{ labels.edit }}</button>
-                <button @click="doDelete(g.id)" class="text-red-400 hover:underline text-xs">{{ labels.delete }}</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <div v-else class="text-center text-gray-400 py-10">暂无数据</div>
+      <div v-if="loading" class="text-center text-gray-400 py-10">{{ labels.loading }}</div>
+      <div v-else-if="groups.length === 0" class="text-center text-gray-400 py-10">{{ labels.noData }}</div>
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div v-for="g in groups" :key="g.id" class="bg-white rounded-xl border border-pink-50 p-4 hover:shadow-md transition">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-green-100 to-emerald-50 flex items-center justify-center text-lg shrink-0">
+              {{ (g.avatar || '💬')[0] }}
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-medium text-gray-900 truncate">{{ g.group_name }}</p>
+              <p class="text-xs text-gray-400 truncate">{{ g.group_number }}</p>
+            </div>
+          </div>
+          <p v-if="g.remark" class="text-xs text-gray-500 mb-2 truncate">{{ g.remark }}</p>
+          <div v-if="g.tags.length" class="flex flex-wrap gap-1 mb-3">
+            <span v-for="t in g.tags" :key="t" class="px-1.5 py-0.5 text-[10px] bg-green-50 text-green-600 rounded-full">{{ t }}</span>
+          </div>
+          <div class="flex gap-2 text-xs pt-2 border-t border-pink-50">
+            <button @click="viewMembers(g)" class="text-gray-500 hover:underline">{{ labels.memberTitle }}</button>
+            <button @click="goEdit(g)" class="text-primary hover:underline">{{ labels.edit }}</button>
+            <button @click="doDelete(g.id)" class="text-red-400 hover:underline ml-auto">{{ labels.delete }}</button>
+          </div>
+        </div>
       </div>
     </template>
 
@@ -186,13 +177,13 @@ onMounted(loadGroups)
               <input v-model="form.group_name" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
             <div class="col-span-2">
-              <label class="text-xs text-gray-500 mb-1 block">备注</label>
+              <label class="text-xs text-gray-500 mb-1 block">{{ labels.tableGroupRemark }}</label>
               <input v-model="form.remark" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
           </div>
 
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">标签</label>
+            <label class="text-xs text-gray-500 mb-1 block">{{ labels.tableTags }}</label>
             <div class="flex gap-2 mb-2">
               <input v-model="tagInput" @keyup.enter="addTag" :placeholder="labels.tagPlaceholder" class="flex-1 px-3 py-1.5 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
               <button @click="addTag" class="px-3 py-1.5 text-sm bg-pink-50/50 rounded-xl hover:bg-pink-100">{{ labels.addTag }}</button>

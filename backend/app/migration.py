@@ -12,6 +12,9 @@ def run_migration(db: Session):
     _migrate_admin_users(db)
     _add_board_id_columns(db)
     _add_board_label_columns(db)
+    _add_person_card_bg(db)
+    _add_user_avatar(db)
+    _add_board_type(db)
     _ensure_default_board(db)
     db.commit()
 
@@ -65,9 +68,24 @@ def _add_board_id_columns(db: Session):
     db.commit()
 
 def _add_board_label_columns(db: Session):
-    for col, default in [("group_label", "群"), ("groups_label", "群组")]:
+    for col, default in [("group_label", "图组"), ("groups_label", "图组")]:
         if not _column_exists(db, "boards", col):
             db.execute(text(f"ALTER TABLE boards ADD COLUMN {col} VARCHAR(50) NOT NULL DEFAULT '{default}'"))
+    db.commit()
+
+def _add_person_card_bg(db: Session):
+    if not _column_exists(db, "persons", "card_bg"):
+        db.execute(text("ALTER TABLE persons ADD COLUMN card_bg VARCHAR(2000)"))
+    db.commit()
+
+def _add_user_avatar(db: Session):
+    if not _column_exists(db, "users", "avatar"):
+        db.execute(text("ALTER TABLE users ADD COLUMN avatar VARCHAR(500)"))
+    db.commit()
+
+def _add_board_type(db: Session):
+    if not _column_exists(db, "boards", "board_type"):
+        db.execute(text("ALTER TABLE boards ADD COLUMN board_type VARCHAR(20) NOT NULL DEFAULT 'image'"))
     db.commit()
 
 def _ensure_default_board(db: Session):
@@ -81,8 +99,8 @@ def _ensure_default_board(db: Session):
         return
     db.execute(
         text(
-            "INSERT INTO boards (user_id, name, icon, description, card_label, cards_label, group_label, groups_label, field_config, is_public, sort_order) "
-            "VALUES (:uid, '默认看板', '👥', '默认看板', '群友', '群友们', '群', '群组', '{}', 1, 0)"
+            "INSERT INTO boards (user_id, name, icon, description, card_label, cards_label, group_label, groups_label, board_type, field_config, is_public, sort_order) "
+            "VALUES (:uid, '默认画板', '🖼️', '默认画板', '图片', '图片', '图组', '图组', 'image', '{}', 1, 0)"
         ),
         {"uid": admin[0]},
     )
