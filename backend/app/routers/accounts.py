@@ -3,29 +3,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
-from ..models import Person, Account, AccountNicknameHistory, GroupMembership, Board, User
-from ..auth import require_admin, require_user
+from ..models import Person, Account, AccountNicknameHistory, GroupMembership
+from ..auth import require_admin, require_user, optional_user, require_board_owner, require_person_owner, check_board_visible
 from ..audit import log as audit_log
 from .. import schemas
 
 router = APIRouter(prefix="/api/persons/{person_id}/accounts", tags=["accounts"])
-
-
-def _check_person_owner(db: Session, person_id: int, user: dict):
-    p = db.query(Person).get(person_id)
-    if not p:
-        raise HTTPException(status_code=404, detail="条目不存在")
-    if user["role"] == "admin":
-        return p
-    if not p.board_id:
-        return p
-    u = db.query(User).filter(User.uid == user["uid"]).first()
-    if not u:
-        raise HTTPException(status_code=404, detail="用户不存在")
-    board = db.query(Board).filter(Board.id == p.board_id, Board.user_id == u.id).first()
-    if not board:
-        raise HTTPException(status_code=403, detail="无权操作此画板")
-    return p
 
 
 def _account_to_detail(a: Account) -> schemas.AccountDetail:
@@ -41,10 +24,12 @@ def _account_to_detail(a: Account) -> schemas.AccountDetail:
 
 
 @router.get("", response_model=list[schemas.AccountDetail])
-def list_accounts(person_id: int, db: Session = Depends(get_db)):
+def list_accounts(person_id: int, db: Session = Depends(get_db), user: dict | None = Depends(optional_user)):
     p = db.query(Person).get(person_id)
     if not p:
         raise HTTPException(status_code=404, detail="条目不存在")
+    if p.board_id:
+        check_board_visible(db, p.board_id, user)
     accounts = (
         db.query(Account).options(joinedload(Account.nickname_histories))
         .filter(Account.person_id == person_id).all()
@@ -54,7 +39,7 @@ def list_accounts(person_id: int, db: Session = Depends(get_db)):
 
 @router.post("", response_model=schemas.AccountDetail, status_code=201)
 def create_account(person_id: int, data: schemas.AccountCreate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
-    p = _check_person_owner(db, person_id, user)
+    p = require_person_owner(db, person_id, user)
     a = Account(
         person_id=person_id, board_id=p.board_id,
         account_type=data.account_type, account_identifier=data.account_identifier,
@@ -68,24 +53,24 @@ def create_account(person_id: int, data: schemas.AccountCreate, db: Session = De
 
 @router.put("/{account_id}", response_model=schemas.AccountDetail)
 def update_account(person_id: int, account_id: int, data: schemas.AccountUpdate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
-    _check_person_owner(db, person_id, user)
+    require_person_owner(db, person_id, user)
     a = db.query(Account).options(joinedload(Account.nickname_histories)).filter(
         Account.id == account_id, Account.person_id == person_id
     ).first()
     if not a:
         raise HTTPException(status_code=404, detail="关联账号不存在")
-    changed = {}
+    changed = False
     for field, val in data.model_dump(exclude_unset=True).items():
-        setattr(a, field, val); changed[field] = True
+        setattr(a, field, val); changed = True
     if changed:
-        audit_log(db, user["username"], "update", "account", account_id, {"changed_fields": list(changed.keys())})
+        audit_log(db, user["username"], "update", "account", account_id, {"changed_fields": list(data.model_dump(exclude_unset=True).keys())})
     db.commit(); db.refresh(a)
     return _account_to_detail(a)
 
 
 @router.delete("/{account_id}", status_code=204)
 def delete_account(person_id: int, account_id: int, db: Session = Depends(get_db), user: dict = Depends(require_user)):
-    _check_person_owner(db, person_id, user)
+    require_person_owner(db, person_id, user)
     a = db.query(Account).filter(Account.id == account_id, Account.person_id == person_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="关联账号不存在")
@@ -100,7 +85,7 @@ def add_nickname_history(
     person_id: int, account_id: int, data: schemas.NicknameHistoryCreate,
     db: Session = Depends(get_db), user: dict = Depends(require_user),
 ):
-    _check_person_owner(db, person_id, user)
+    require_person_owner(db, person_id, user)
     a = db.query(Account).filter(Account.id == account_id, Account.person_id == person_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="关联账号不存在")
@@ -116,7 +101,7 @@ def remove_nickname_history(
     person_id: int, account_id: int, history_id: int,
     db: Session = Depends(get_db), user: dict = Depends(require_user),
 ):
-    _check_person_owner(db, person_id, user)
+    require_person_owner(db, person_id, user)
     h = db.query(AccountNicknameHistory).join(Account).filter(
         AccountNicknameHistory.id == history_id,
         AccountNicknameHistory.account_id == account_id,
@@ -130,7 +115,10 @@ def remove_nickname_history(
 
 
 @router.get("/{account_id}/memberships", response_model=list[schemas.MembershipBrief])
-def list_memberships(person_id: int, account_id: int, db: Session = Depends(get_db)):
+def list_memberships(person_id: int, account_id: int, db: Session = Depends(get_db), user: dict | None = Depends(optional_user)):
+    p = db.query(Person).get(person_id)
+    if p and p.board_id:
+        check_board_visible(db, p.board_id, user)
     a = db.query(Account).filter(Account.id == account_id, Account.person_id == person_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="关联账号不存在")

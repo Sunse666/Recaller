@@ -15,7 +15,9 @@ class User(Base):
     username = Column(String(100), unique=True, nullable=False, index=True)
     password_hash = Column(String(200), nullable=False)
     role = Column(String(10), nullable=False, default="user")
+    enabled = Column(Boolean, default=True, nullable=False)
     avatar = Column(String(500), nullable=True)
+    limits = Column(Text, default="{}")
     created_at = Column(DateTime, default=_utcnow)
 
     boards = relationship("Board", back_populates="user", cascade="all, delete-orphan")
@@ -147,14 +149,6 @@ class PersonMeeting(Base):
 
     person = relationship("Person", back_populates="meetings")
 
-class AdminUser(Base):
-    __tablename__ = "admin_users"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String(100), unique=True, nullable=False, index=True)
-    password_hash = Column(String(200), nullable=False)
-    created_at = Column(DateTime, default=_utcnow)
-
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 
@@ -176,3 +170,9 @@ class AuthToken(Base):
     role = Column(String(10), nullable=False)
     expires_at = Column(DateTime, nullable=False, index=True)
     created_at = Column(DateTime, default=_utcnow)
+
+class SystemConfig(Base):
+    __tablename__ = "system_config"
+
+    key = Column(String(50), primary_key=True)
+    value = Column(Text, nullable=False)

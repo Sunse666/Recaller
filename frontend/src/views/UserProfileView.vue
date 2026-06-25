@@ -10,17 +10,15 @@ import PersonCard from '../components/PersonCard.vue'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const profileBoard = ref(null)
 const boardMap = ref({})
-const labels = useLabels(profileBoard)
+const labels = useLabels()
 
 const profileUid = route.params.uid
 const isOwner = auth.uid === profileUid
-const persons = ref([])
+const boardGroups = ref([])
 const loading = ref(true)
 const search = ref('')
 
-const bannerImages = ref([])
 const imageAspects = ref({})
 
 const COLORS = ['#f472b6','#818cf8','#34d399','#fb923c','#a78bfa','#fbbf24','#38bdf8','#e879f9']
@@ -40,8 +38,8 @@ function preloadImage(src) {
   })
 }
 
-function pickImages(personsList) {
-  const pool = bannerImages.value.length > 0 ? [...bannerImages.value] : []
+function pickImages(personsList, boardBanners) {
+  const pool = boardBanners.length > 0 ? [...boardBanners] : []
   return personsList.map(p => {
     if (p.card_bg) return p.card_bg
     if (pool.length === 0) return placeholderUrl(p.name)
@@ -62,11 +60,9 @@ function calcWidth(aspect) {
   return Math.max(22.5, Math.min(26, raw * best))
 }
 
-const places = ref([])
-
-async function computeLayout(personsList) {
-  if (!personsList.length) { places.value = []; return }
-  const picks = pickImages(personsList)
+async function computeLayout(personsList, banners) {
+  if (!personsList.length) return []
+  const picks = pickImages(personsList, banners)
   await Promise.all(picks.map(src => preloadImage(src)))
   const cards = personsList.map((p, i) => {
     const src = picks[i]; const aspect = imageAspects.value[src] || 1
@@ -99,7 +95,7 @@ async function computeLayout(personsList) {
       colY[c] += card.h
     }
   }
-  places.value = result
+  return result
 }
 
 async function loadPersons() {
@@ -107,38 +103,39 @@ async function loadPersons() {
   try {
     const profile = await api.getUserProfile(profileUid)
     const boards = profile.boards || []
-    profileBoard.value = boards[0] || null
     const map = {}
     boards.forEach(b => { map[b.id] = b.name || 'default' })
     boardMap.value = map
-    bannerImages.value = []
+    const groups = []
     for (const b of boards) {
-      const fc = typeof b.field_config === 'object' ? b.field_config : {}
-      if (fc.bannerImages && fc.bannerImages.length) {
-        bannerImages.value = fc.bannerImages
-        break
-      }
+      try {
+        const cards = await api.listPersons(search.value, b.id)
+        if (cards.length === 0) continue
+        const fc = typeof b.field_config === 'object' ? b.field_config : {}
+        const banners = (fc.bannerImages && fc.bannerImages.length) ? fc.bannerImages : []
+        const places = await computeLayout(cards, banners)
+        groups.push({
+          board: b,
+          cards_count: cards.length,
+          places,
+          containerHeight: places.reduce((m, p) => Math.max(m, p.y + p.h), 0),
+        })
+      } catch { }
     }
-    const all = []
-    for (const b of boards) {
-      try { const cards = await api.listPersons(search.value, b.id); all.push(...cards) } catch { }
-    }
-    persons.value = all
+    boardGroups.value = groups
   } catch {
-    persons.value = []
+    boardGroups.value = []
   }
-  await computeLayout(persons.value)
   loading.value = false
 }
 
 function onSearch(val) { search.value = val; loadPersons() }
-function goDetail(p) {
-  const boardName = boardMap.value[p.board_id] || 'default'
+function goDetail(p, boardName) {
   router.push(`/${profileUid}/${encodeURIComponent(boardName)}/${encodeURIComponent(p.name)}`)
 }
 
 let resizeTimer
-function onResize() { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (persons.value.length) computeLayout(persons.value) }, 300) }
+function onResize() { clearTimeout(resizeTimer); resizeTimer = setTimeout(loadPersons, 300) }
 
 const headerHidden = ref(false)
 const showBackTop = ref(false)
@@ -151,9 +148,9 @@ function onScroll() {
   lastScrollY = y
 }
 function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }) }
-function containerHeight() { let maxBtm = 0; for (const p of places.value) { if (p.y + p.h > maxBtm) maxBtm = p.y + p.h }; return maxBtm + 'vw' }
 
-onMounted(() => {
+onMounted(async () => {
+  await auth.checkAuth()
   loadPersons()
   window.addEventListener('resize', onResize)
   window.addEventListener('scroll', onScroll, { passive: true })
@@ -193,13 +190,6 @@ watch(() => route.params.uid, () => { loadPersons() })
     </header>
 
     <main class="relative z-10 px-0 py-8">
-      <div class="mb-8 px-2">
-        <h2 class="text-2xl font-bold text-gray-900">
-          {{ search ? labels.searchPrefix + '「' + search + '」' : labels.homeTitle }}
-        </h2>
-        <p class="text-primary/70 mt-1 text-sm">{{ labels.homeCount(persons.length) }}</p>
-      </div>
-
       <div v-if="loading" class="px-2">
         <div class="flex gap-2">
           <div v-for="col in 3" :key="col" class="flex-1 space-y-2" :class="{ 'hidden md:block': col > 1, 'hidden lg:block': col > 2 }">
@@ -208,21 +198,33 @@ watch(() => route.params.uid, () => { loadPersons() })
         </div>
       </div>
 
-      <div v-else-if="!places.length" class="text-center text-gray-400 py-20">
+      <div v-else-if="!boardGroups.length" class="text-center text-gray-400 py-20">
         <div class="text-5xl mb-4">🫥</div>
         <p class="text-lg text-gray-500">{{ labels.emptyHome }}</p>
         <p class="text-sm mt-1">{{ labels.emptyHomeHint }}</p>
       </div>
 
-      <div v-else class="relative w-full" :style="{ height: containerHeight() }">
-        <div
-          v-for="item in places"
-          :key="item.person.id"
-          class="absolute transition-transform duration-300 hover:scale-[1.02] hover:z-10"
-          :style="{ left: item.x + 'vw', top: item.y + 'vw', width: item.w + 'vw' }"
-        >
-          <PersonCard :person="item.person" :image="item.image" @click="goDetail(item.person)" />
-        </div>
+      <div v-else>
+        <section v-for="group in boardGroups" :key="group.board.id" class="mb-12">
+          <div class="mb-4 px-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">{{ group.board.icon || '📋' }}</span>
+              <h2 class="text-xl font-bold text-gray-900">{{ group.board.name }}</h2>
+            </div>
+            <p class="text-gray-400 text-sm mt-1">{{ group.cards_count }} {{ group.board.cards_label || '图片' }}</p>
+          </div>
+
+          <div class="relative w-full" :style="{ height: group.containerHeight + 'vw' }">
+            <div
+              v-for="item in group.places"
+              :key="item.person.id"
+              class="absolute transition-transform duration-300 hover:scale-[1.02] hover:z-10"
+              :style="{ left: item.x + 'vw', top: item.y + 'vw', width: item.w + 'vw' }"
+            >
+              <PersonCard :person="item.person" :image="item.image" @click="goDetail(item.person, group.board.name)" />
+            </div>
+          </div>
+        </section>
       </div>
     </main>
 

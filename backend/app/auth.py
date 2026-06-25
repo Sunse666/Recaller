@@ -2,7 +2,6 @@ import datetime
 import re
 import time
 import secrets
-import string
 from fastapi import HTTPException, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
@@ -12,7 +11,6 @@ from .database import SessionLocal
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-_UID_ALPHABET = string.ascii_letters + string.digits + "-_"
 _LOGIN_ATTEMPTS: dict[str, list[float]] = {}
 _MAX_LOGIN_ATTEMPTS = 5
 _LOGIN_WINDOW = 60
@@ -25,9 +23,6 @@ def check_login_rate(ip: str) -> bool:
         return False
     attempts.append(now)
     return True
-
-def generate_uid(size=21) -> str:
-    return "".join(secrets.choice(_UID_ALPHABET) for _ in range(size))
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -142,7 +137,6 @@ def get_token_from_request(request: Request) -> str | None:
         return auth[7:]
     return None
 
-
 def require_admin(
     request: Request,
     creds: HTTPAuthorizationCredentials | None = Depends(security),
@@ -157,7 +151,6 @@ def require_admin(
         raise HTTPException(status_code=403, detail="需要管理员权限")
     return entry
 
-
 def require_user(
     request: Request,
     creds: HTTPAuthorizationCredentials | None = Depends(security),
@@ -170,7 +163,6 @@ def require_user(
         raise HTTPException(status_code=401, detail="未登录或令牌已过期")
     return entry
 
-
 def optional_user(
     request: Request,
     creds: HTTPAuthorizationCredentials | None = Depends(security),
@@ -179,3 +171,55 @@ def optional_user(
     if not token:
         return None
     return verify_token_full(token)
+
+def get_user_by_uid(db: Session, uid: str) -> User | None:
+    from .models import User as UserModel
+    return db.query(UserModel).filter(UserModel.uid == uid).first()
+
+def require_board_owner(db: Session, board_id: int, user: dict):
+    if board_id is None:
+        return
+    if user["role"] == "admin":
+        return
+    from .models import Board, User as UserModel
+    u = db.query(UserModel).filter(UserModel.uid == user["uid"]).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    board = db.query(Board).filter(Board.id == board_id, Board.user_id == u.id).first()
+    if not board:
+        raise HTTPException(status_code=403, detail="无权操作此画板")
+
+def get_default_board_id(db: Session, user: dict) -> int | None:
+    from .models import Board, User as UserModel
+    u = db.query(UserModel).filter(UserModel.uid == user["uid"]).first()
+    if not u:
+        return None
+    board = db.query(Board).filter(Board.user_id == u.id).order_by(Board.sort_order).first()
+    return board.id if board else None
+
+def check_board_visible(db: Session, board_id: int, user: dict | None):
+    if board_id is None:
+        return
+    from .models import Board as B
+    board = db.query(B).filter(B.id == board_id).first()
+    if board and not board.is_public:
+        if user is None:
+            raise HTTPException(status_code=403, detail="无权访问")
+        require_board_owner(db, board_id, user)
+
+def require_person_owner(db: Session, person_id: int, user: dict):
+    from .models import Person, Board, User as UserModel
+    p = db.query(Person).get(person_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="条目不存在")
+    if p.board_id is None:
+        return p
+    if user["role"] == "admin":
+        return p
+    u = db.query(UserModel).filter(UserModel.uid == user["uid"]).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    board = db.query(Board).filter(Board.id == p.board_id, Board.user_id == u.id).first()
+    if not board:
+        raise HTTPException(status_code=403, detail="无权操作此画板")
+    return p

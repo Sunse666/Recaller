@@ -8,10 +8,8 @@ DATABASE_URL = f"sqlite:///{DATA_DIR}/recaller.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-
 class Base(DeclarativeBase):
     pass
-
 
 def get_db():
     db = SessionLocal()
@@ -19,7 +17,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
 
 def run_startup_migration():
     from .migration import run_migration

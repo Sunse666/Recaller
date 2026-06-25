@@ -5,10 +5,10 @@ services:
     restart: unless-stopped
     volumes:
       - ./data:/app/data
+    env_file:
+      - .env
     environment:
       - DATA_DIR=/app/data
-      - ADMIN_USER=admin
-      - ADMIN_PASS=admin123
 
   frontend:
     build: ./frontend

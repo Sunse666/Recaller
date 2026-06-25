@@ -4,7 +4,6 @@ from cryptography.fernet import Fernet
 _KEY_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "encryption.key")
 _KEY: bytes | None = None
 
-
 def _get_key() -> bytes:
     global _KEY
     if _KEY:
@@ -25,13 +24,11 @@ def _get_key() -> bytes:
         f.write(_KEY)
     return _KEY
 
-
 def encrypt(text: str | None) -> str | None:
     if not text:
         return text
     f = Fernet(_get_key())
     return f.encrypt(text.encode()).decode()
-
 
 def decrypt(text: str | None) -> str | None:
     if not text:

@@ -2,16 +2,16 @@ import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
 
-class UserRegister(BaseModel):
-    username: str = Field(..., min_length=2, max_length=50)
-    password: str = Field(..., min_length=8, max_length=128)
+class LimitsConfig(BaseModel):
+    upload_rate_per_min: int = 10
+    upload_max_size_mb: int = 10
+    upload_max_px: int = 2048
 
 class UserBrief(BaseModel):
     uid: str
     username: str
     role: str
     model_config = {"from_attributes": True}
-
 
 class BoardCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -199,7 +199,6 @@ class GroupDetail(BaseModel):
 
 class MembershipCreate(BaseModel):
     account_id: int
-    group_id: int
     group_nickname: Optional[str] = Field(default=None, max_length=50)
     joined_at: Optional[datetime.datetime] = None
     left_at: Optional[datetime.datetime] = None

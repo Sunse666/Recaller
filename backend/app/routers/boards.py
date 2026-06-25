@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+import json
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Board
-from ..auth import require_admin, require_user
+from ..models import Board, User
+from ..auth import require_admin, require_user, get_user_by_uid, require_board_owner
 from ..audit import log as audit_log
 from .. import schemas
 
@@ -11,7 +12,6 @@ router = APIRouter(prefix="/api/boards", tags=["boards"])
 
 
 def _board_to_response(b: Board) -> schemas.BoardResponse:
-    import json
     return schemas.BoardResponse(
         id=b.id,
         user_id=b.user_id,
@@ -30,37 +30,29 @@ def _board_to_response(b: Board) -> schemas.BoardResponse:
     )
 
 
-def _check_ownership(db: Session, board_id: int, user: dict) -> Board:
-    board = db.query(Board).get(board_id)
-    if not board:
-        raise HTTPException(status_code=404, detail="画板不存在")
-    if user["role"] == "admin":
-        return board
-    from ..models import User
-    u = db.query(User).filter(User.uid == user["uid"]).first()
-    if not u or board.user_id != u.id:
-        raise HTTPException(status_code=403, detail="无权操作此画板")
-    return board
-
-
 @router.get("", response_model=list[schemas.BoardResponse])
-def list_boards(user: dict = Depends(require_user), db: Session = Depends(get_db)):
-    if user["role"] == "admin":
-        boards = db.query(Board).order_by(Board.sort_order).all()
-    else:
-        user_obj = __import__('sqlalchemy.orm', fromlist=['Session'])
-        from ..models import User
-        u = db.query(User).filter(User.uid == user["uid"]).first()
-        if not u:
-            return []
-        boards = db.query(Board).filter(Board.user_id == u.id).order_by(Board.sort_order).all()
+def list_boards(
+    uid: str = Query(default=None),
+    user: dict = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    if uid and user["role"] == "admin":
+        target = get_user_by_uid(db, uid)
+        if not target:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        boards = db.query(Board).filter(Board.user_id == target.id).order_by(Board.sort_order).all()
+        return [_board_to_response(b) for b in boards]
+
+    u = get_user_by_uid(db, user["uid"])
+    if not u:
+        return []
+    boards = db.query(Board).filter(Board.user_id == u.id).order_by(Board.sort_order).all()
     return [_board_to_response(b) for b in boards]
 
 
 @router.get("/default", response_model=schemas.BoardResponse)
 def get_default_board(user: dict = Depends(require_user), db: Session = Depends(get_db)):
-    from ..models import User
-    u = db.query(User).filter(User.uid == user["uid"]).first()
+    u = get_user_by_uid(db, user["uid"])
     if not u:
         raise HTTPException(status_code=404, detail="用户不存在")
     board = db.query(Board).filter(Board.user_id == u.id).order_by(Board.sort_order).first()
@@ -71,9 +63,7 @@ def get_default_board(user: dict = Depends(require_user), db: Session = Depends(
 
 @router.post("", response_model=schemas.BoardResponse, status_code=201)
 def create_board(data: schemas.BoardCreate, user: dict = Depends(require_user), db: Session = Depends(get_db)):
-    from ..models import User
-    import json
-    u = db.query(User).filter(User.uid == user["uid"]).first()
+    u = get_user_by_uid(db, user["uid"])
     if not u:
         raise HTTPException(status_code=404, detail="用户不存在")
     b = Board(
@@ -103,34 +93,26 @@ def get_board(board_id: int, user: dict = Depends(require_user), db: Session = D
     board = db.query(Board).get(board_id)
     if not board:
         raise HTTPException(status_code=404, detail="画板不存在")
-    if user["role"] != "admin":
-        from ..models import User
-        u = db.query(User).filter(User.uid == user["uid"]).first()
-        if not u or board.user_id != u.id:
-            raise HTTPException(status_code=403, detail="无权访问此画板")
+    require_board_owner(db, board_id, user)
     return _board_to_response(board)
 
 
 @router.put("/{board_id}", response_model=schemas.BoardResponse)
 def update_board(board_id: int, data: schemas.BoardUpdate, user: dict = Depends(require_user), db: Session = Depends(get_db)):
-    import json
     board = db.query(Board).get(board_id)
     if not board:
         raise HTTPException(status_code=404, detail="画板不存在")
-    if user["role"] != "admin":
-        from ..models import User
-        u = db.query(User).filter(User.uid == user["uid"]).first()
-        if not u or board.user_id != u.id:
-            raise HTTPException(status_code=403, detail="无权修改此画板")
-    changed = {}
+    require_board_owner(db, board_id, user)
+    changed = False
     for field, val in data.model_dump(exclude_unset=True).items():
         if field == "field_config" and val is not None:
             setattr(board, field, json.dumps(val, ensure_ascii=False))
+            changed = True
         elif val is not None:
             setattr(board, field, val)
-        changed[field] = True
+            changed = True
     if changed:
-        audit_log(db, user["username"], "update", "board", board_id, {"changed_fields": list(changed.keys())})
+        audit_log(db, user["username"], "update", "board", board_id, {"changed_fields": list(data.model_dump(exclude_unset=True).keys())})
     db.commit()
     db.refresh(board)
     return _board_to_response(board)
@@ -141,11 +123,7 @@ def delete_board(board_id: int, user: dict = Depends(require_user), db: Session 
     board = db.query(Board).get(board_id)
     if not board:
         raise HTTPException(status_code=404, detail="画板不存在")
-    if user["role"] != "admin":
-        from ..models import User
-        u = db.query(User).filter(User.uid == user["uid"]).first()
-        if not u or board.user_id != u.id:
-            raise HTTPException(status_code=403, detail="无权删除此画板")
+    require_board_owner(db, board_id, user)
     user_boards = db.query(Board).filter(Board.user_id == board.user_id).count()
     if user_boards <= 1:
         raise HTTPException(status_code=400, detail="不能删除最后一个画板")

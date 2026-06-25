@@ -15,18 +15,25 @@ const copied = ref('')
 async function loadImages() {
   loading.value = true
   await boardStore.fetchBoards()
-  const b = boardStore.currentBoard
-  if (!b) { loading.value = false; return }
-  const fc = typeof b.field_config === 'object' ? b.field_config : {}
-  images.value = (fc.bannerImages || []).map(url => ({ url, type: '图池' }))
+  if (!boardStore.boards.length) { loading.value = false; return }
+  const seen = new Set()
+  const result = []
+  for (const b of boardStore.boards) {
+    const fc = typeof b.field_config === 'object' ? b.field_config : {}
+    for (const url of (fc.bannerImages || [])) {
+      if (!seen.has(url)) { seen.add(url); result.push({ url, type: '图池', board: b.name }) }
+    }
+  }
   try {
-    const persons = await api.listPersons('', boardStore.currentBoardId)
-    for (const p of persons) {
-      const detail = await api.getPerson(p.id)
-      if (detail.avatar) images.value.push({ url: detail.avatar, type: '头像', person: detail.name })
-      if (detail.card_bg) images.value.push({ url: detail.card_bg, type: '卡片背景', person: detail.name })
+    for (const b of boardStore.boards) {
+      const persons = await api.listPersons('', b.id)
+      for (const p of persons) {
+        if (p.avatar && !seen.has(p.avatar)) { seen.add(p.avatar); result.push({ url: p.avatar, type: '头像', person: p.name }) }
+        if (p.card_bg && !seen.has(p.card_bg)) { seen.add(p.card_bg); result.push({ url: p.card_bg, type: '卡片背景', person: p.name }) }
+      }
     }
   } catch { }
+  images.value = result
   loading.value = false
 }
 
@@ -115,6 +122,7 @@ onMounted(loadImages)
             }"
           >{{ img.type }}</span>
           <span v-if="img.person" class="text-xs text-gray-400 ml-1">{{ img.person }}</span>
+          <span v-if="img.board" class="text-xs text-gray-300 ml-1">{{ img.board }}</span>
         </div>
       </div>
     </div>

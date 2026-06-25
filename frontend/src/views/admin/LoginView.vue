@@ -22,7 +22,7 @@ async function doLogin() {
   try {
     await auth.login(username.value, password.value)
     if (auth.role === 'admin') {
-      router.replace('/admin/persons')
+      router.replace('/admin/dashboard')
     } else {
       router.replace(`/${auth.uid}/persons`)
     }

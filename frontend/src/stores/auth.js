@@ -4,24 +4,21 @@ import { api } from '../api/client'
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     username: localStorage.getItem('username') || '',
-    role: localStorage.getItem('role') || '',
-    uid: localStorage.getItem('uid') || '',
-    avatar: localStorage.getItem('avatar') || '',
+    role: '',
+    uid: '',
+    avatar: '',
+    verified: false,
   }),
   getters: {
-    isLoggedIn: (state) => !!state.username,
-    isAdmin: (state) => state.role === 'admin',
+    isLoggedIn: (state) => !!state.username && state.verified,
+    isAdmin: (state) => state.verified && state.role === 'admin',
   },
   actions: {
     async login(username, password) {
       const data = await api.login(username, password)
-      this.username = data.username
-      this.role = data.role || ''
-      this.uid = data.uid || ''
+      this.verified = true
       localStorage.setItem('username', data.username)
-      localStorage.setItem('role', data.role || '')
-      localStorage.setItem('uid', data.uid || '')
-      await this.checkAuth()  // get avatar
+      await this.checkAuth()
     },
     async register(username, password) {
       await api.register(username, password)
@@ -33,20 +30,16 @@ export const useAuthStore = defineStore('auth', {
         this.role = data.role || ''
         this.uid = data.uid || ''
         this.avatar = data.avatar || ''
+        this.verified = true
         localStorage.setItem('username', data.username)
-        localStorage.setItem('role', data.role || '')
-        localStorage.setItem('uid', data.uid || '')
-        localStorage.setItem('avatar', data.avatar || '')
         return true
       } catch {
         this.username = ''
         this.role = ''
         this.uid = ''
         this.avatar = ''
+        this.verified = false
         localStorage.removeItem('username')
-        localStorage.removeItem('role')
-        localStorage.removeItem('uid')
-        localStorage.removeItem('avatar')
         return false
       }
     },
@@ -56,10 +49,8 @@ export const useAuthStore = defineStore('auth', {
       this.role = ''
       this.uid = ''
       this.avatar = ''
+      this.verified = false
       localStorage.removeItem('username')
-      localStorage.removeItem('role')
-      localStorage.removeItem('uid')
-      localStorage.removeItem('avatar')
     },
     async changeUsername(newUsername) {
       const data = await api.changeUsername(newUsername)
@@ -70,7 +61,6 @@ export const useAuthStore = defineStore('auth', {
     async uploadAvatar(file) {
       const data = await api.uploadAvatar(file)
       this.avatar = data.url
-      localStorage.setItem('avatar', data.url)
       return data
     },
   },

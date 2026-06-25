@@ -11,10 +11,19 @@ const routes = [
     component: () => import('../views/admin/AdminLayout.vue'),
     meta: { requiresAuth: true, requiresAdmin: true },
     children: [
-      { path: '', redirect: '/admin/persons' },
+      { path: '', redirect: '/admin/dashboard' },
+      { path: 'dashboard', name: 'admin-dashboard', component: () => import('../views/admin/AdminDashboardView.vue') },
+      { path: 'users', name: 'admin-users', component: () => import('../views/admin/AdminUsersView.vue') },
+      { path: 'users/:uid', name: 'admin-user-detail', component: () => import('../views/admin/AdminUserDetailView.vue') },
+      { path: 'users/:uid/boards/:boardId', redirect: to => `/admin/users/${to.params.uid}/boards/${to.params.boardId}/persons` },
+      { path: 'users/:uid/boards/:boardId/persons', name: 'admin-user-board-persons', component: () => import('../views/admin/AdminPersonsView.vue') },
+      { path: 'users/:uid/boards/:boardId/settings', name: 'admin-user-board-settings', component: () => import('../views/admin/AdminSettingsView.vue') },
+      { path: 'users/:uid/boards/:boardId/images', name: 'admin-user-board-images', component: () => import('../views/admin/AdminImagesView.vue') },
       { path: 'persons', name: 'admin-persons', component: () => import('../views/admin/AdminPersonsView.vue') },
       { path: 'settings', name: 'admin-settings', component: () => import('../views/admin/AdminSettingsView.vue') },
       { path: 'images', name: 'admin-images', component: () => import('../views/admin/AdminImagesView.vue') },
+      { path: 'audit', name: 'admin-audit', component: () => import('../views/admin/AdminAuditView.vue') },
+      { path: 'system', name: 'admin-system', component: () => import('../views/admin/AdminSystemView.vue') },
     ],
   },
 
@@ -35,20 +44,33 @@ const routes = [
   { path: '/:personName', redirect: to => `/1/default/${to.params.personName}` },
 ]
 
+async function verifyAuth() {
+  try {
+    const res = await fetch('/api/auth/me', { credentials: 'same-origin' })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data
+  } catch {
+    return null
+  }
+}
+
 const router = createRouter({ history: createWebHistory(), routes })
 
-router.beforeEach((to, from, next) => {
-  let username = localStorage.getItem('username')
-  let role = localStorage.getItem('role')
-  if (username && !role) { localStorage.removeItem('username'); username = '' }
-  const uid = localStorage.getItem('uid')
-
+router.beforeEach(async (to, from, next) => {
   if (to.meta.requiresAuth) {
-    if (!username) return next('/login')
-    if (to.meta.requiresAdmin && role !== 'admin') return next('/')
+    const user = await verifyAuth()
+    if (!user) return next('/login')
+    if (to.meta.requiresAdmin && user.role !== 'admin') return next('/')
+    next()
+    return
   }
   if (to.path === '/login' || to.path === '/register') {
-    if (username) return next(role === 'admin' ? '/admin/persons' : `/${uid || ''}/persons`)
+    const user = await verifyAuth()
+    if (user) {
+      if (user.role === 'admin') return next('/admin/dashboard')
+      return next(`/${user.uid || ''}/persons`)
+    }
   }
   next()
 })

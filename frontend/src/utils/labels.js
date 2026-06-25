@@ -99,6 +99,12 @@ const DEF = {
   changeAvatar: '换', changeUsernameHint: '双击修改用户名',
 }
 
+const TYPE_DEFAULTS = {
+  image:  { card_label:'图片', cards_label:'图片', group_label:'图组', groups_label:'图组', icon:'🖼️' },
+  friend: { card_label:'群友', cards_label:'群友们', group_label:'群', groups_label:'群组', icon:'👥' },
+  shuoshuo:{ card_label:'说说', cards_label:'说说', group_label:'话题', groups_label:'话题', icon:'💬' },
+}
+
 export function useLabels(boardRef = null) {
   const boardStore = useBoardStore()
 
@@ -233,4 +239,4 @@ export function useLabels(boardRef = null) {
   })
 }
 
-export { DEF }
+export { DEF, TYPE_DEFAULTS }

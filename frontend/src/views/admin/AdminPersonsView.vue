@@ -159,7 +159,12 @@ async function doDeleteAccount(accId) {
   accounts.value = await api.listAccounts(editingPerson.value.id)
 }
 
+import { watch } from 'vue'
+
 onMounted(loadPersons)
+watch(() => boardStoreLocal.currentBoardId, () => {
+  if (view.value === 'list') loadPersons()
+})
 </script>
 
 <template>

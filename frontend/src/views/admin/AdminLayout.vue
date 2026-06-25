@@ -1,9 +1,9 @@
 <script setup>
-import { ref, onMounted, computed, provide } from 'vue'
+import { ref, onMounted, computed, provide, watch } from 'vue'
 import { useRouter, useRoute, RouterView } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useBoardStore } from '../../stores/boards'
-import { useLabels } from '../../utils/labels'
+import { useLabels, TYPE_DEFAULTS } from '../../utils/labels'
 
 const router = useRouter()
 const route = useRoute()
@@ -13,12 +13,35 @@ const labels = useLabels()
 
 provide('currentBoardId', computed(() => boardStore.currentBoardId))
 
+const isAdmin = computed(() => auth.verified && auth.role === 'admin')
 const basePath = computed(() => {
   const uid = route.params.uid
   return uid ? `/${uid}` : '/admin'
 })
 
+const adminUserUid = computed(() => route.path.match(/^\/admin\/users\/(\d+)\/boards/) ? route.params.uid : null)
+const adminBoardId = computed(() => adminUserUid.value ? route.params.boardId : null)
+
 const navItems = computed(() => {
+  if (adminUserUid.value) {
+    const bu = `/admin/users/${adminUserUid.value}/boards/${adminBoardId.value}`
+    return [
+      { path: `${bu}/persons`, label: labels.value.cardManage },
+      { path: `${bu}/settings`, label: labels.value.settingsTitle },
+      { path: `${bu}/images`, label: labels.value.imagesTitle },
+    ]
+  }
+  if (isAdmin.value) {
+    return [
+      { path: '/admin/dashboard', label: '仪表盘' },
+      { path: '/admin/users', label: '用户管理' },
+      { path: '/admin/persons', label: labels.value.cardManage },
+      { path: '/admin/settings', label: labels.value.settingsTitle },
+      { path: '/admin/images', label: labels.value.imagesTitle },
+      { path: '/admin/audit', label: '审计日志' },
+      { path: '/admin/system', label: '系统设置' },
+    ]
+  }
   const b = basePath.value
   return [
     { path: `${b}/persons`, label: labels.value.cardManage },
@@ -27,7 +50,11 @@ const navItems = computed(() => {
   ]
 })
 
-function isActive(path) { return route.path.startsWith(path) }
+function isActive(path) {
+  if (adminUserUid.value) return route.path.startsWith(path)
+  if (isAdmin.value) return route.path === path
+  return route.path.startsWith(path)
+}
 
 async function doLogout() {
   await auth.logout()
@@ -36,6 +63,9 @@ async function doLogout() {
 
 function switchBoard(boardId) {
   boardStore.setCurrentBoard(Number(boardId))
+  if (adminUserUid.value) {
+    router.push(`/admin/users/${adminUserUid.value}/boards/${boardId}/persons`)
+  }
 }
 
 const showNewBoard = ref(false)
@@ -58,12 +88,6 @@ function doChangeUsername() {
   auth.changeUsername(name).catch(e => alert(labels.value.usernameChangeFail + ': ' + e.message))
 }
 
-const TYPE_DEFAULTS = {
-  image:  { card_label:'图片', cards_label:'图片', group_label:'图组', groups_label:'图组', icon:'🖼️' },
-  friend: { card_label:'群友', cards_label:'群友们', group_label:'群', groups_label:'群组', icon:'👥' },
-  shuoshuo:{ card_label:'说说', cards_label:'说说', group_label:'话题', groups_label:'话题', icon:'💬' },
-}
-
 async function createBoard() {
   if (!newBoardName.value.trim()) return
   const td = TYPE_DEFAULTS[newBoardType.value] || TYPE_DEFAULTS.image
@@ -82,14 +106,44 @@ async function createBoard() {
   showNewBoard.value = false
 }
 
+async function loadBoards() {
+  if (adminUserUid.value) {
+    await boardStore.fetchBoards(adminUserUid.value)
+    if (adminBoardId.value) {
+      boardStore.setCurrentBoard(Number(adminBoardId.value))
+    }
+  } else if (boardStore.targetUid) {
+    await boardStore.fetchOwnBoards()
+  } else {
+    await boardStore.fetchBoards()
+  }
+}
+
+const isManagementPage = computed(() => {
+  const name = route.name
+  if (!name) return false
+  return name.endsWith('-persons') || name.endsWith('-settings') || name.endsWith('-images') || name.startsWith('admin-user-board-')
+})
+
+watch(isManagementPage, (isMgmt, wasMgmt) => {
+  if (isMgmt && !wasMgmt) {
+    loadBoards()
+  }
+  if (!isMgmt && wasMgmt && boardStore.targetUid) {
+    boardStore.fetchOwnBoards()
+  }
+})
+
 onMounted(async () => {
-  if (route.name === 'user-profile' || route.name === 'user-person-detail') return
+  const isProfilePage = route.name === 'user-profile' || route.name === 'user-person-detail'
   const ok = await auth.checkAuth()
-  if (!ok) {
+  if (!ok && !isProfilePage) {
     router.replace('/login')
     return
   }
-  await boardStore.fetchBoards()
+  if (!isProfilePage && route.name !== 'user-person-detail') {
+    await loadBoards()
+  }
 })
 </script>
 
@@ -118,6 +172,10 @@ onMounted(async () => {
         </div>
       </div>
 
+      <div v-if="adminUserUid" class="px-3 py-2 bg-yellow-50 border-b border-yellow-100">
+        <p class="text-xs text-yellow-700 mb-1">管理用户 UID: {{ adminUserUid }}</p>
+        <router-link to="/admin/users" class="text-xs text-primary hover:underline">&larr; 返回用户管理</router-link>
+      </div>
       <div class="px-3 py-2 border-b border-pink-50">
         <select
           v-if="boardStore.boards.length > 0"
@@ -129,7 +187,7 @@ onMounted(async () => {
             {{ b.icon || '📋' }} {{ b.name }}
           </option>
         </select>
-        <button @click="showNewBoard = !showNewBoard" class="w-full text-xs text-primary hover:underline mt-1 text-center">
+        <button v-if="!adminUserUid" @click="showNewBoard = !showNewBoard" class="w-full text-xs text-primary hover:underline mt-1 text-center">
           {{ showNewBoard ? labels.cancel : labels.newBoard }}
         </button>
         <div v-if="showNewBoard" class="mt-2 space-y-1.5">

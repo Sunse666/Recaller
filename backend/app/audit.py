@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from .models import AuditLog
 
-
 def log(db: Session, username: str, action: str, target_type: str, target_id: int | None = None, details: dict | None = None):
     entry = AuditLog(
         username=username,

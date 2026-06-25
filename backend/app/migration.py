@@ -1,12 +1,5 @@
-import secrets
-import string
 from sqlalchemy import text, inspect
 from sqlalchemy.orm import Session
-
-_UID_ALPHABET = string.ascii_letters + string.digits + "-_"
-
-def _nanoid(size=21) -> str:
-    return "".join(secrets.choice(_UID_ALPHABET) for _ in range(size))
 
 def run_migration(db: Session):
     _migrate_admin_users(db)
@@ -16,6 +9,9 @@ def run_migration(db: Session):
     _add_user_avatar(db)
     _add_board_type(db)
     _ensure_default_board(db)
+    _add_user_enabled(db)
+    _create_system_config(db)
+    _add_user_limits(db)
     db.commit()
 
 def _has_table(db: Session, name: str) -> bool:
@@ -108,6 +104,23 @@ def _ensure_default_board(db: Session):
     default_id = db.execute(text("SELECT id FROM boards ORDER BY id LIMIT 1")).scalar()
     for table in ("persons", "groups", "accounts"):
         db.execute(text(f"UPDATE {table} SET board_id = :bid WHERE board_id IS NULL"), {"bid": default_id})
+    db.commit()
+
+def _add_user_enabled(db: Session):
+    if not _column_exists(db, "users", "enabled"):
+        db.execute(text("ALTER TABLE users ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT 1"))
+    db.commit()
+
+def _create_system_config(db: Session):
+    if not _has_table(db, "system_config"):
+        db.execute(text("CREATE TABLE system_config (key VARCHAR(50) PRIMARY KEY, value TEXT NOT NULL)"))
+        db.execute(text("INSERT INTO system_config (key, value) VALUES ('registration_open', '1')"))
+        db.execute(text("INSERT INTO system_config (key, value) VALUES ('site_name', '图片展示')"))
+    db.commit()
+
+def _add_user_limits(db: Session):
+    if not _column_exists(db, "users", "limits"):
+        db.execute(text("ALTER TABLE users ADD COLUMN limits TEXT NOT NULL DEFAULT '{}'"))
     db.commit()
 
 def _utcnow_str() -> str:

@@ -6,22 +6,32 @@ export const useBoardStore = defineStore('boards', {
     boards: [],
     currentBoardId: Number(localStorage.getItem('currentBoardId')) || null,
     loading: false,
+    targetUid: null,
+    ownBoardId: null,
   }),
   getters: {
     currentBoard: (state) => state.boards.find(b => b.id === state.currentBoardId) || null,
     hasBoards: (state) => state.boards.length > 0,
+    viewingOtherUser: (state) => state.targetUid !== null,
   },
   actions: {
-    async fetchBoards() {
+    async fetchBoards(uid = null) {
       this.loading = true
+      this.targetUid = uid || null
+      const prevBoardId = this.currentBoardId
       try {
-        this.boards = await api.listBoards()
-        if (!this.currentBoardId && this.boards.length > 0) {
+        this.boards = await api.listBoards(uid || null)
+        if (prevBoardId && this.boards.some(b => b.id === prevBoardId)) {
+          this.currentBoardId = prevBoardId
+        } else if (this.boards.length > 0) {
           this.currentBoardId = this.boards[0].id
-          localStorage.setItem('currentBoardId', this.currentBoardId)
         }
       } catch { this.boards = [] }
       finally { this.loading = false }
+    },
+    async fetchOwnBoards() {
+      this.targetUid = null
+      await this.fetchBoards(null)
     },
     setCurrentBoard(boardId) {
       this.currentBoardId = boardId

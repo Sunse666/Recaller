@@ -1,8 +1,9 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useLabels } from '../../utils/labels'
+import { api } from '../../api/client'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -13,6 +14,14 @@ const confirmPassword = ref('')
 const error = ref('')
 const success = ref('')
 const loading = ref(false)
+const registrationOpen = ref(true)
+
+onMounted(async () => {
+  try {
+    const cfg = await api.getPublicConfig()
+    registrationOpen.value = cfg.registration_open !== '0'
+  } catch {}
+})
 
 async function doRegister() {
   if (!username.value || !password.value) {
@@ -44,7 +53,13 @@ async function doRegister() {
 
 <template>
   <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 via-white to-blue-50">
-    <div class="bg-white rounded-xl shadow-lg p-8 w-full max-w-sm border border-pink-100">
+    <div v-if="!registrationOpen" class="bg-white rounded-xl shadow-lg p-8 w-full max-w-sm border border-pink-100 text-center">
+      <p class="text-gray-600 mb-2">注册已关闭</p>
+      <p class="text-gray-400 text-sm mb-4">请联系管理员手动添加账号</p>
+      <router-link to="/login" class="text-primary hover:underline text-sm">返回登录</router-link>
+    </div>
+
+    <div v-else class="bg-white rounded-xl shadow-lg p-8 w-full max-w-sm border border-pink-100">
       <h1 class="text-xl font-bold text-center mb-6 text-primary">{{ labels.registerTitle }}</h1>
       <div class="space-y-4">
         <div>

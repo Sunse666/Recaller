@@ -1,8 +1,8 @@
 const BASE = '/api'
 
 async function request(url, options = {}) {
-  const isUpload = options.headers && options.headers[''] === undefined
-  const headers = isUpload ? { ...options.headers } : { 'Content-Type': 'application/json', ...options.headers }
+  const isUpload = options.body instanceof FormData
+  const headers = isUpload ? {} : { 'Content-Type': 'application/json', ...options.headers }
   const res = await fetch(`${BASE}${url}`, {
     headers,
     credentials: 'same-origin',
@@ -49,7 +49,10 @@ export const api = {
   getUserProfile(uid) { return request(`/users/${uid}`) },
 
   // boards
-  listBoards() { return request('/boards') },
+  listBoards(uid = null) {
+    const params = uid ? `?uid=${uid}` : ''
+    return request(`/boards${params}`)
+  },
   getDefaultBoard() { return request('/boards/default') },
   createBoard(data) { return request('/boards', { method: 'POST', body: JSON.stringify(data) }) },
   updateBoard(id, data) { return request(`/boards/${id}`, { method: 'PUT', body: JSON.stringify(data) }) },
@@ -73,23 +76,6 @@ export const api = {
   deleteAccount(personId, accountId) { return request(`/persons/${personId}/accounts/${accountId}`, { method: 'DELETE' }) },
   addNicknameHistory(personId, accountId, data) { return request(`/persons/${personId}/accounts/${accountId}/nicknames`, { method: 'POST', body: JSON.stringify(data) }) },
   deleteNicknameHistory(personId, accountId, historyId) { return request(`/persons/${personId}/accounts/${accountId}/nicknames/${historyId}`, { method: 'DELETE' }) },
-  listMemberships(personId, accountId) { return request(`/persons/${personId}/accounts/${accountId}/memberships`) },
-  updateMembership(groupId, membershipId, data) { return request(`/groups/${groupId}/members/${membershipId}`, { method: 'PUT', body: JSON.stringify(data) }) },
-
-  // groups
-  listGroups(search = '', boardId = null) {
-    let url = `/groups?search=${encodeURIComponent(search)}`
-    if (boardId) url += `&board_id=${boardId}`
-    return request(url)
-  },
-  getGroup(id) { return request(`/groups/${id}`) },
-  createGroup(data) { return request('/groups', { method: 'POST', body: JSON.stringify(data) }) },
-  updateGroup(id, data) { return request(`/groups/${id}`, { method: 'PUT', body: JSON.stringify(data) }) },
-  deleteGroup(id) { return request(`/groups/${id}`, { method: 'DELETE' }) },
-  getGroupMembers(groupId) { return request(`/groups/${groupId}/members`) },
-  addGroupMember(groupId, data) { return request(`/groups/${groupId}/members`, { method: 'POST', body: JSON.stringify(data) }) },
-  updateGroupMember(groupId, membershipId, data) { return request(`/groups/${groupId}/members/${membershipId}`, { method: 'PUT', body: JSON.stringify(data) }) },
-  removeGroupMember(groupId, membershipId) { return request(`/groups/${groupId}/members/${membershipId}`, { method: 'DELETE' }) },
 
   // relations & meetings
   listRelations(personId) { return request(`/persons/${personId}/relations`) },
@@ -98,4 +84,25 @@ export const api = {
   listMeetings(personId) { return request(`/persons/${personId}/meetings`) },
   addMeeting(personId, data) { return request(`/persons/${personId}/meetings`, { method: 'POST', body: JSON.stringify(data) }) },
   deleteMeeting(personId, meetingId) { return request(`/persons/${personId}/meetings/${meetingId}`, { method: 'DELETE' }) },
+
+  // admin: users
+  adminListUsers(params = {}) { return request(`/admin/users?${new URLSearchParams(params)}`) },
+  adminCreateUser(data) { return request('/admin/users', { method: 'POST', body: JSON.stringify(data) }) },
+  adminUpdateUser(uid, data) { return request(`/admin/users/${uid}`, { method: 'PUT', body: JSON.stringify(data) }) },
+  adminDeleteUser(uid) { return request(`/admin/users/${uid}`, { method: 'DELETE' }) },
+  adminResetPassword(uid) { return request(`/admin/users/${uid}/reset-password`, { method: 'POST' }) },
+  adminForceLogout(uid) { return request(`/admin/users/${uid}/force-logout`, { method: 'POST' }) },
+
+  // admin: dashboard
+  adminDashboard() { return request('/admin/dashboard') },
+
+  // admin: audit logs
+  adminAuditLogs(params = {}) { return request(`/admin/audit-logs?${new URLSearchParams(params)}`) },
+
+  // admin: config
+  adminGetConfig() { return request('/admin/config') },
+  adminUpdateConfig(data) { return request('/admin/config', { method: 'PUT', body: JSON.stringify(data) }) },
+
+  // public config
+  getPublicConfig() { return request('/public/config') },
 }

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useBoardStore } from '../../stores/boards'
-import { useLabels, DEF } from '../../utils/labels'
+import { useLabels, DEF, TYPE_DEFAULTS } from '../../utils/labels'
 
 const boardStore = useBoardStore()
 const labels = useLabels()
