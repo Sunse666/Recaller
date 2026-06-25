@@ -44,7 +44,7 @@ def _init_admin():
             err = validate_password_strength(password)
             if err:
                 print(f"[init] 警告: 默认管理员密码强度不足: {err}")
-            user = create_user(db, username, password, role="admin")
+            user = create_user(db, username, password, role="superadmin")
             print(f"[init] 已创建管理员: {username} (uid={user.uid})")
     finally:
         db.close()
@@ -153,7 +153,7 @@ def register(payload: LoginPayload, request: Request, db: Session = Depends(get_
     try:
         user = create_user(db, username, password, role="user")
         board = Board(
-            user_id=user.id, name="默认画板", icon="🖼️",
+            user_id=user.id, name="默认画板", icon="",
             card_label="图片", cards_label="图片",
             group_label="图组", groups_label="图组",
             board_type="image",

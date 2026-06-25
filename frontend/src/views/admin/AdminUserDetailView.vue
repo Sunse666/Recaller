@@ -51,8 +51,8 @@ function goBack() {
           <div class="flex-1">
             <div class="flex items-center gap-2">
               <h3 class="text-lg font-bold text-gray-900">{{ user.username }}</h3>
-              <span :class="user.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'"
-                class="px-2 py-0.5 rounded-full text-xs font-medium">{{ user.role === 'admin' ? '管理员' : '用户' }}</span>
+              <span :class="user.role === 'superadmin' ? 'bg-purple-100 text-purple-700' : user.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'"
+                class="px-2 py-0.5 rounded-full text-xs font-medium">{{ user.role === 'superadmin' ? '超级管理员' : user.role === 'admin' ? '管理员' : '用户' }}</span>
               <span :class="user.enabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
                 class="px-2 py-0.5 rounded-full text-xs font-medium">{{ user.enabled ? '已启用' : '已禁用' }}</span>
             </div>
@@ -82,7 +82,7 @@ function goBack() {
         <div v-for="b in boards" :key="b.id"
           class="flex items-center justify-between bg-white rounded-xl border border-gray-100 p-4 hover:border-pink-200 transition">
           <div class="flex items-center gap-3">
-            <span class="text-2xl">{{ b.icon || '📋' }}</span>
+            <span class="text-2xl font-bold text-gray-400">{{ b.icon || '' }}</span>
             <div>
               <p class="font-medium text-gray-800">{{ b.name }}</p>
               <p class="text-xs text-gray-400">{{ b.board_type === 'image' ? '图组' : b.board_type === 'friend' ? '群友' : '说说' }} · {{ b.card_label || '图片' }} · {{ b.is_public ? '公开' : '私密' }}</p>

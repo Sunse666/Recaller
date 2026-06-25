@@ -13,7 +13,7 @@ const labels = useLabels()
 
 provide('currentBoardId', computed(() => boardStore.currentBoardId))
 
-const isAdmin = computed(() => auth.verified && auth.role === 'admin')
+const isAdmin = computed(() => auth.verified && (auth.role === 'admin' || auth.role === 'superadmin'))
 const basePath = computed(() => {
   const uid = route.params.uid
   return uid ? `/${uid}` : '/admin'
@@ -184,7 +184,7 @@ onMounted(async () => {
           class="w-full text-sm px-3 py-2 border border-pink-100 rounded-xl outline-none bg-white focus:border-primary transition"
         >
           <option v-for="b in boardStore.boards" :key="b.id" :value="b.id">
-            {{ b.icon || '📋' }} {{ b.name }}
+            {{ b.icon || '' }} {{ b.name }}
           </option>
         </select>
         <button v-if="!adminUserUid" @click="showNewBoard = !showNewBoard" class="w-full text-xs text-primary hover:underline mt-1 text-center">
@@ -196,9 +196,9 @@ onMounted(async () => {
             <input v-model="newBoardName" :placeholder="labels.boardNamePlaceholder" class="flex-1 px-2 py-1.5 text-sm border border-pink-100 rounded-lg outline-none focus:border-primary" @keyup.enter="createBoard" />
           </div>
           <select v-model="newBoardType" class="w-full px-2 py-1.5 text-xs border border-pink-100 rounded-lg outline-none">
-            <option value="image">🖼️ 图组模式</option>
-            <option value="friend">👥 群友模式</option>
-            <option value="shuoshuo">💬 说说模式</option>
+            <option value="image">图组模式</option>
+            <option value="friend">群友模式</option>
+            <option value="shuoshuo">说说模式</option>
           </select>
           <button @click="createBoard" class="w-full py-1.5 bg-primary text-white text-xs rounded-lg hover:bg-primary-dark">{{ labels.confirm }}</button>
         </div>

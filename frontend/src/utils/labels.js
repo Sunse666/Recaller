@@ -55,7 +55,7 @@ const DEF = {
   personDetailRelationFallback: '关联',
 
   // board
-  defaultBoardName: '默认画板', defaultBoardIcon: '🖼️',
+  defaultBoardName: '默认画板', defaultBoardIcon: '',
   newBoard: '+ 新建画板', boardNamePlaceholder: '画板名称',
 
   // settings page
@@ -77,8 +77,8 @@ const DEF = {
   imagesTitle: '图片管理（图床）',
   uploadImage: '+ 上传图片', uploading: '上传中...',
   imagesHint: '卡片背景从图池随机选取。可设置「卡片背景 URL」固定绑定。「预览图 URL」仅供详情页使用。',
-  noImages: '暂无图片', noImagesHint: '上传图片到图池，或给作品设置预览图 / 卡片背景',
-  copyUrl: '复制 URL', copied: '已复制 ✓',
+  noImages: '暂无图片',
+  copyUrl: '复制 URL', copied: '已复制',
   deleteImage: '删除', deleteImageConfirm: '从图池删除此图片？已使用此 URL 的作品不受影响。',
   uploadFail: '上传失败',
 
@@ -100,9 +100,9 @@ const DEF = {
 }
 
 const TYPE_DEFAULTS = {
-  image:  { card_label:'图片', cards_label:'图片', group_label:'图组', groups_label:'图组', icon:'🖼️' },
-  friend: { card_label:'群友', cards_label:'群友们', group_label:'群', groups_label:'群组', icon:'👥' },
-  shuoshuo:{ card_label:'说说', cards_label:'说说', group_label:'话题', groups_label:'话题', icon:'💬' },
+  image:  { card_label:'图片', cards_label:'图片', group_label:'图组', groups_label:'图组', icon:'' },
+  friend: { card_label:'群友', cards_label:'群友们', group_label:'群', groups_label:'群组', icon:'' },
+  shuoshuo:{ card_label:'说说', cards_label:'说说', group_label:'话题', groups_label:'话题', icon:'' },
 }
 
 export function useLabels(boardRef = null) {
@@ -135,8 +135,7 @@ export function useLabels(boardRef = null) {
       // home
       homeTitle: g('homeTitlePrefix') + cards,
       homeCount: (n) => n + ' ' + g('countUnit') + card,
-      emptyHome: g('emptyHome') || '还没有添加' + card,
-      emptyHomeHint: g('emptyHomeHint') || '去后台管理页面添加第一位' + card + '吧',
+      emptyHome: g('emptyHome') || '还没有' + card,
       homeLogin: g('homeLogin'),
 
       // profile

@@ -43,21 +43,21 @@ const bgColor = computed(() => isBgColor.value ? props.image.slice(3) : null)
       </div>
       <p v-if="person.remark" class="text-white/70 text-xs md:text-sm truncate mb-1">{{ person.remark }}</p>
 
+      <div class="flex flex-wrap gap-1 mb-1">
+        <span
+          v-for="tag in person.impression_tags?.slice(0, 2)"
+          :key="tag"
+          class="px-2 py-0.5 text-[10px] rounded-full bg-primary/30 text-white/90 backdrop-blur-sm"
+        >{{ tag }}</span>
+        <span
+          v-for="tag in person.circle_tags?.slice(0, 3)"
+          :key="tag"
+          class="px-2 py-0.5 text-[10px] rounded-full bg-blue-400/30 text-white/90 backdrop-blur-sm"
+        >{{ tag }}</span>
+      </div>
       <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
         <p v-if="person.signature" class="text-white/60 text-xs line-clamp-2 mb-2">{{ person.signature }}</p>
-        <div class="flex flex-wrap gap-1">
-          <span
-            v-for="tag in person.impression_tags?.slice(0, 2)"
-            :key="tag"
-            class="px-2 py-0.5 text-[10px] rounded-full bg-primary/30 text-white/90 backdrop-blur-sm"
-          >{{ tag }}</span>
-          <span
-            v-for="tag in person.circle_tags?.slice(0, 2)"
-            :key="tag"
-            class="px-2 py-0.5 text-[10px] rounded-full bg-blue-400/30 text-white/90 backdrop-blur-sm"
-          >{{ tag }}</span>
-        </div>
-        <p v-if="person.birthday" class="text-pink-200 text-[10px] mt-2">🎂 {{ person.birthday }}</p>
+        <p v-if="person.birthday" class="text-pink-200 text-[10px] mt-2">{{ person.birthday }}</p>
       </div>
     </div>
   </div>

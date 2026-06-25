@@ -61,14 +61,14 @@ router.beforeEach(async (to, from, next) => {
   if (to.meta.requiresAuth) {
     const user = await verifyAuth()
     if (!user) return next('/login')
-    if (to.meta.requiresAdmin && user.role !== 'admin') return next('/')
+    if (to.meta.requiresAdmin && user.role !== 'admin' && user.role !== 'superadmin') return next('/')
     next()
     return
   }
   if (to.path === '/login' || to.path === '/register') {
     const user = await verifyAuth()
     if (user) {
-      if (user.role === 'admin') return next('/admin/dashboard')
+      if (user.role === 'admin' || user.role === 'superadmin') return next('/admin/dashboard')
       return next(`/${user.uid || ''}/persons`)
     }
   }

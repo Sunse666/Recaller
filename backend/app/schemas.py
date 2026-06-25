@@ -94,6 +94,7 @@ class PersonBrief(BaseModel):
     circle_tags: List[str] = []
     impression_tags: List[str] = []
     importance: int = 0
+    notes: Optional[str] = None
     account_count: int = 0
     board_id: Optional[int] = None
     model_config = {"from_attributes": True}

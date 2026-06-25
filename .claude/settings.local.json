@@ -11,7 +11,8 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\('D:/IO/HTML/Recaller/backend/app/models.py', encoding='utf-8'\\).read\\(\\)\\); print\\('models.py OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('D:/IO/HTML/Recaller/backend/app/migration.py', encoding='utf-8'\\).read\\(\\)\\); print\\('migration.py OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('D:/IO/HTML/Recaller/backend/app/routers/groups.py', encoding='utf-8'\\).read\\(\\)\\); print\\('groups.py OK'\\)\")",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(docker compose *)"
     ]
   }
 }

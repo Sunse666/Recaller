@@ -12,6 +12,8 @@ def run_migration(db: Session):
     _add_user_enabled(db)
     _create_system_config(db)
     _add_user_limits(db)
+    _bump_user_auto_uid(db)
+    _upgrade_admin_to_superadmin(db)
     db.commit()
 
 def _has_table(db: Session, name: str) -> bool:
@@ -96,7 +98,7 @@ def _ensure_default_board(db: Session):
     db.execute(
         text(
             "INSERT INTO boards (user_id, name, icon, description, card_label, cards_label, group_label, groups_label, board_type, field_config, is_public, sort_order) "
-            "VALUES (:uid, '默认画板', '🖼️', '默认画板', '图片', '图片', '图组', '图组', 'image', '{}', 1, 0)"
+            "VALUES (:uid, '默认画板', '', '默认画板', '图片', '图片', '图组', '图组', 'image', '{}', 1, 0)"
         ),
         {"uid": admin[0]},
     )
@@ -121,6 +123,21 @@ def _create_system_config(db: Session):
 def _add_user_limits(db: Session):
     if not _column_exists(db, "users", "limits"):
         db.execute(text("ALTER TABLE users ADD COLUMN limits TEXT NOT NULL DEFAULT '{}'"))
+    db.commit()
+
+def _upgrade_admin_to_superadmin(db: Session):
+    """将现有 role='admin' 的用户升级为 'superadmin'"""
+    db.execute(text("UPDATE users SET role = 'superadmin' WHERE role = 'admin'"))
+    db.commit()
+
+def _bump_user_auto_uid(db: Session):
+    """将 users 表自增起点推到 11，使新用户自动 UID 从 11 开始。仅当最大 id < 10 时执行。"""
+    try:
+        max_id = db.execute(text("SELECT COALESCE(MAX(id), 0) FROM users")).scalar()
+        if max_id < 10:
+            db.execute(text("UPDATE sqlite_sequence SET seq = 10 WHERE name = 'users'"))
+    except Exception:
+        pass
     db.commit()
 
 def _utcnow_str() -> str:

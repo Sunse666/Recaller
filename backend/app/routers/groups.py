@@ -26,7 +26,7 @@ def list_groups(search: str = "", board_id: int = None, db: Session = Depends(ge
     elif user is None:
         public_ids = [b.id for b in db.query(Board).filter(Board.is_public == True).all()]
         query = query.filter(Group.board_id.in_(public_ids))
-    elif user["role"] != "admin":
+    elif user["role"] not in ("admin", "superadmin"):
         u = get_user_by_uid(db, user["uid"])
         if u:
             own_ids = [b.id for b in db.query(Board).filter(Board.user_id == u.id).all()]

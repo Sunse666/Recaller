@@ -95,8 +95,7 @@ onMounted(loadImages)
     <div v-if="loading" class="text-center text-gray-400 py-10">{{ labels.loading }}</div>
 
     <div v-else-if="images.length === 0" class="text-center text-gray-400 py-20">
-      <div class="text-5xl mb-4">🖼️</div>
-      <p>{{ labels.noImages }}</p>
+      <p class="text-lg">{{ labels.noImages }}</p>
       <p class="text-sm mt-1">{{ labels.noImagesHint }}</p>
     </div>
 

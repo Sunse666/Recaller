@@ -1,9 +1,11 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '../../stores/auth'
 import { api } from '../../api/client'
 
 const router = useRouter()
+const auth = useAuthStore()
 const users = ref([])
 const search = ref('')
 const roleFilter = ref('')
@@ -30,13 +32,13 @@ function resetFilters() { search.value = ''; roleFilter.value = ''; enabledFilte
 const showDialog = ref(false)
 const dialogMode = ref('create')
 const defaultLimits = { upload_rate_per_min: 10, upload_max_size_mb: 10, upload_max_px: 2048 }
-const dialogForm = ref({ username: '', password: '', role: 'user', enabled: true, limits: { ...defaultLimits } })
+const dialogForm = ref({ username: '', password: '', uid: '', role: 'user', enabled: true, limits: { ...defaultLimits } })
 const dialogUid = ref('')
 const dialogTitle = computed(() => dialogMode.value === 'create' ? '添加用户' : '编辑用户')
 
 function openCreate() {
   dialogMode.value = 'create'
-  dialogForm.value = { username: '', password: '', role: 'user', enabled: true, limits: { ...defaultLimits } }
+  dialogForm.value = { username: '', password: '', uid: '', role: 'user', enabled: true, limits: { ...defaultLimits } }
   dialogUid.value = ''
   showDialog.value = true
 }
@@ -109,6 +111,7 @@ function goToUser(u) {
       </div>
       <select v-model="roleFilter" @change="doSearch" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg outline-none">
         <option value="">全部角色</option>
+        <option value="superadmin">超级管理员</option>
         <option value="admin">管理员</option>
         <option value="user">普通用户</option>
       </select>
@@ -145,13 +148,13 @@ function goToUser(u) {
               </div>
             </td>
             <td class="px-4 py-3">
-              <span :class="u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'"
-                class="px-2 py-0.5 rounded-full text-xs font-medium">{{ u.role === 'admin' ? '管理员' : '用户' }}</span>
+              <span :class="u.role === 'superadmin' ? 'bg-purple-100 text-purple-700' : u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'"
+                class="px-2 py-0.5 rounded-full text-xs font-medium">{{ u.role === 'superadmin' ? '超级管理员' : u.role === 'admin' ? '管理员' : '用户' }}</span>
             </td>
             <td class="px-4 py-3">
               <span :class="u.enabled ? 'text-green-600' : 'text-red-500'">{{ u.enabled ? '启用' : '禁用' }}</span>
               <span v-if="u.limits && Object.keys(u.limits).some(k => u.limits[k] !== 10 && u.limits[k] !== 2048 && u.limits[k] !== 0)"
-                class="ml-1 text-yellow-500 text-xs" title="自定义限额">⚡</span>
+                class="ml-1 text-yellow-500 text-xs font-bold" title="自定义限额">*</span>
             </td>
             <td class="px-4 py-3 text-gray-600">{{ u.board_count }}</td>
             <td class="px-4 py-3 text-gray-500 text-xs">{{ u.created_at ? u.created_at.slice(0, 10) : '-' }}</td>
@@ -185,11 +188,16 @@ function goToUser(u) {
             <label class="text-xs text-gray-500 block mb-1">密码</label>
             <input v-model="dialogForm.password" type="text" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-primary" />
           </div>
-          <div>
+          <div v-if="dialogMode === 'create'">
+            <label class="text-xs text-gray-500 block mb-1">UID（留空自动分配，从 11 开始）</label>
+            <input v-model="dialogForm.uid" placeholder="自动分配" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-primary" />
+          </div>
+          <div v-if="dialogMode === 'create' || auth.isAdmin">
             <label class="text-xs text-gray-500 block mb-1">角色</label>
             <select v-model="dialogForm.role" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none">
               <option value="user">普通用户</option>
               <option value="admin">管理员</option>
+              <option v-if="auth.role === 'superadmin'" value="superadmin">超级管理员</option>
             </select>
           </div>
           <div class="flex items-center gap-2">

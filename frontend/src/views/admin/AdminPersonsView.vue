@@ -19,6 +19,7 @@ const T = computed(() => {
   }
   if (isShuoshuo.value) return {
     cardNameLabel: '标题', notesLabel: '内容',
+    importanceLabel: '评分',
     remarkLabel: '', signatureLabel: '', locationLabel: '', accountManageLabel: '',
   }
   return {}
@@ -56,6 +57,35 @@ const accounts = ref([])
 const accForm = ref({ account_type: 'QQ', account_identifier: '', current_nickname: '', current_avatar: '' })
 const accSaving = ref(false)
 
+const sharedBanners = ref([])
+const notesEl = ref(null)
+
+async function loadSharedBanners() {
+  try {
+    const boardStore = useBoardStore()
+    await boardStore.fetchBoards()
+    const seen = new Set()
+    for (const b of boardStore.boards) {
+      const fc = typeof b.field_config === 'object' ? b.field_config : {}
+      for (const url of (fc.bannerImages || [])) {
+        if (!seen.has(url)) { seen.add(url); sharedBanners.value.push(url) }
+      }
+    }
+  } catch {}
+}
+
+function insertImageToNotes(url) {
+  const el = notesEl.value
+  if (!el) return
+  const alt = url.split('/').pop()?.split('.').shift() || '图片'
+  const tag = `![${alt}](${url})`
+  const start = el.selectionStart; const end = el.selectionEnd
+  const before = (form.value.notes || '').slice(0, start)
+  const after = (form.value.notes || '').slice(end)
+  form.value.notes = before + tag + after
+  requestAnimationFrame(() => { el.focus(); el.selectionStart = el.selectionEnd = start + tag.length })
+}
+
 function addCircleTag() {
   const v = circleInput.value.trim()
   if (v && !form.value.circle_tags.includes(v)) form.value.circle_tags.push(v)
@@ -85,6 +115,7 @@ function goCreate() {
   form.value = emptyForm()
   accounts.value = []
   view.value = 'create'
+  loadSharedBanners()
 }
 
 async function goEdit(p) {
@@ -104,6 +135,7 @@ async function goEdit(p) {
   editingPerson.value = p
   accounts.value = await api.listAccounts(p.id)
   view.value = 'edit'
+  loadSharedBanners()
 }
 
 function goList() {
@@ -203,10 +235,11 @@ watch(() => boardStoreLocal.currentBoardId, () => {
             <tr v-for="p in persons" :key="p.id" class="border-t border-pink-50 hover:bg-pink-50/30 transition">
               <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
-                  <img :src="p.avatar || '/default-avatar.svg'" class="w-8 h-8 rounded-full object-cover bg-pink-100" />
-                  <div>
-                    <p class="font-medium">{{ p.name }}</p>
-                    <p v-if="p.remark" class="text-xs text-gray-400">{{ p.remark }}</p>
+                  <img :src="p.avatar || '/default-avatar.svg'" class="w-8 h-8 rounded-full object-cover bg-pink-100 shrink-0" />
+                  <div class="min-w-0">
+                    <p class="font-medium truncate">{{ p.name }}</p>
+                    <p v-if="p.remark" class="text-xs text-gray-400 truncate">{{ p.remark }}</p>
+                    <p v-if="isShuoshuo && p.notes" class="text-xs text-gray-400 truncate mt-0.5">{{ p.notes.slice(0, 40) }}{{ p.notes.length > 40 ? '...' : '' }}</p>
                   </div>
                 </div>
               </td>
@@ -235,7 +268,7 @@ watch(() => boardStoreLocal.currentBoardId, () => {
                 <span v-else class="text-gray-300">-</span>
               </td>
               <td class="px-4 py-3">
-                <span class="text-yellow-400">{{ '⭐'.repeat(Math.min(p.importance, 5)) || '-' }}</span>
+                <span class="text-yellow-400">{{ '★'.repeat(Math.min(p.importance, 5)) || '-' }}</span>
               </td>
               <td class="px-4 py-3 text-right">
                 <button @click="goEdit(p)" class="text-primary hover:underline text-xs mr-3">{{ labels.edit }}</button>
@@ -284,15 +317,15 @@ watch(() => boardStoreLocal.currentBoardId, () => {
               <label class="text-xs text-gray-500 mb-1 block">卡片背景 URL</label>
               <input v-model="form.card_bg" placeholder="卡片背景图片链接" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
             </div>
-            <div v-if="!isShuoshuo">
+            <div>
               <label class="text-xs text-gray-500 mb-1 block">{{ tl('importanceLabel') || labels.importanceLabel }}</label>
               <select v-model.number="form.importance" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none">
                 <option :value="0">{{ labels.importanceNone }}</option>
-                <option :value="1">⭐</option>
-                <option :value="2">⭐⭐</option>
-                <option :value="3">⭐⭐⭐</option>
-                <option :value="4">⭐⭐⭐⭐</option>
-                <option :value="5">⭐⭐⭐⭐⭐</option>
+                <option :value="1">★ 1 星</option>
+                <option :value="2">★ 2 星</option>
+                <option :value="3">★ 3 星</option>
+                <option :value="4">★ 4 星</option>
+                <option :value="5">★ 5 星</option>
               </select>
             </div>
           </div>
@@ -327,7 +360,20 @@ watch(() => boardStoreLocal.currentBoardId, () => {
 
           <div>
             <label class="text-xs text-gray-500 mb-1 block">{{ tl('notesLabel') || labels.notesLabel }}</label>
-            <textarea v-model="form.notes" rows="3" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary resize-none"></textarea>
+            <textarea ref="notesEl" v-model="form.notes" rows="4" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary resize-none"></textarea>
+            <p class="text-xs text-gray-400 mt-1">支持图片：<code class="bg-gray-100 px-1 rounded">![描述](URL)</code> 或 <code class="bg-gray-100 px-1 rounded">![描述](URL,x=宽,y=高)</code> 或 <code class="bg-gray-100 px-1 rounded">![描述](URL,宽,高)</code></p>
+          </div>
+          <div v-if="sharedBanners.length > 0" class="border border-dashed border-pink-100 rounded-xl p-3">
+            <p class="text-xs text-gray-400 mb-2">点击图床图片插入到内容：</p>
+            <div class="flex flex-wrap gap-2">
+              <img
+                v-for="(url, i) in sharedBanners"
+                :key="i" :src="url"
+                class="w-14 h-14 object-cover rounded-lg cursor-pointer border-2 border-transparent hover:border-primary transition"
+                @click="insertImageToNotes(url)"
+                title="点击插入到内容"
+              />
+            </div>
           </div>
 
           <div v-if="view === 'edit' && isFriend" class="border-t border-pink-100 pt-4 mt-4">

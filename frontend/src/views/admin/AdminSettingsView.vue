@@ -93,7 +93,7 @@ onMounted(async () => { await boardStore.fetchBoards(); loadBoard() })
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="text-xs text-gray-500 mb-1 block">{{ labels.iconLabel }}</label>
-          <input v-model="form.icon" placeholder="🖼️" maxlength="2" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+          <input v-model="form.icon" placeholder="" maxlength="2" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
         </div>
         <div>
           <label class="text-xs text-gray-500 mb-1 block">{{ labels.descriptionLabel }}</label>
@@ -103,9 +103,9 @@ onMounted(async () => { await boardStore.fetchBoards(); loadBoard() })
       <div>
         <label class="text-xs text-gray-500 mb-1 block">画板类型</label>
         <select v-model="form.board_type" @change="() => { const td = TYPE_DEFAULTS[form.board_type]; if (td) { if (!form.card_label) form.card_label = td.card_label; if (!form.cards_label) form.cards_label = td.cards_label; if (!form.group_label) form.group_label = td.group_label; if (!form.groups_label) form.groups_label = td.groups_label } }" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none">
-          <option value="image">🖼️ 图组模式</option>
-          <option value="friend">👥 群友模式</option>
-          <option value="shuoshuo">💬 说说模式</option>
+          <option value="image">图组模式</option>
+          <option value="friend">群友模式</option>
+          <option value="shuoshuo">说说模式</option>
         </select>
       </div>
       <div>

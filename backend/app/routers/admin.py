@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any
 
 from ..database import get_db, DATA_DIR
 from ..models import User, Board, Person, Group, Account, AuthToken, AuditLog, SystemConfig
-from ..auth import require_admin, hash_password, create_token, revoke_user_tokens, validate_password_strength
+from ..auth import require_admin, require_superadmin, hash_password, create_token, revoke_user_tokens, validate_password_strength
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -29,13 +29,14 @@ class UserListItem(BaseModel):
 class UserCreatePayload(BaseModel):
     username: str = Field(..., min_length=2, max_length=50)
     password: str = Field(..., min_length=8, max_length=128)
-    role: str = Field(default="user", pattern="^(user|admin)$")
+    role: str = Field(default="user", pattern="^(user|admin|superadmin)$")
     enabled: bool = True
+    uid: Optional[str] = Field(default=None, min_length=1, max_length=21)
     limits: Dict[str, Any] = {}
 
 class UserUpdatePayload(BaseModel):
     username: Optional[str] = Field(default=None, min_length=2, max_length=50)
-    role: Optional[str] = Field(default=None, pattern="^(user|admin)$")
+    role: Optional[str] = Field(default=None, pattern="^(user|admin|superadmin)$")
     enabled: Optional[bool] = None
     limits: Optional[Dict[str, Any]] = None
 
@@ -88,14 +89,20 @@ def list_users(
 
 @router.post("/users", response_model=UserListItem, status_code=201)
 def create_user(data: UserCreatePayload, db: Session = Depends(get_db), admin: dict = Depends(require_admin)):
+    if data.role in ("admin", "superadmin") and admin["role"] != "superadmin":
+        raise HTTPException(status_code=403, detail="只有超级管理员才能创建管理员或超级管理员")
     existing = db.query(User).filter(User.username == data.username).first()
     if existing:
         raise HTTPException(status_code=409, detail="用户名已存在")
+    if data.uid:
+        existing_uid = db.query(User).filter(User.uid == data.uid).first()
+        if existing_uid:
+            raise HTTPException(status_code=409, detail=f"UID {data.uid} 已被占用")
     err = validate_password_strength(data.password)
     if err:
         raise HTTPException(status_code=400, detail=err)
     u = User(
-        uid="0",
+        uid=data.uid or "0",
         username=data.username,
         password_hash=hash_password(data.password),
         role=data.role,
@@ -104,9 +111,13 @@ def create_user(data: UserCreatePayload, db: Session = Depends(get_db), admin: d
     )
     db.add(u)
     db.flush()
-    u.uid = str(u.id)
+    if not data.uid:
+        from sqlalchemy import func
+        max_id = db.query(func.max(User.id)).scalar() or 0
+        uid_num = max(11, max_id + 1)
+        u.uid = str(uid_num)
     from ..audit import log as audit_log
-    audit_log(db, admin["username"], "create", "user", u.id, {"username": data.username, "role": data.role})
+    audit_log(db, admin["username"], "create", "user", u.id, {"username": data.username, "role": data.role, "uid": u.uid})
     db.commit()
     db.refresh(u)
     return UserListItem(
@@ -131,8 +142,10 @@ def update_user(uid: str, data: UserUpdatePayload, db: Session = Depends(get_db)
         revoke_user_tokens(old_username)
 
     if data.role is not None:
-        if u.uid == admin["uid"] and data.role != "admin":
-            raise HTTPException(status_code=400, detail="不能降级自己的管理员角色")
+        if admin["role"] != "superadmin":
+            raise HTTPException(status_code=403, detail="只有超级管理员才能修改角色")
+        if u.uid == admin["uid"] and data.role != "superadmin":
+            raise HTTPException(status_code=400, detail="不能降级自己的超级管理员角色")
         u.role = data.role
 
     if data.enabled is not None:
@@ -162,6 +175,8 @@ def delete_user(uid: str, db: Session = Depends(get_db), admin: dict = Depends(r
     u = db.query(User).filter(User.uid == uid).first()
     if not u:
         raise HTTPException(status_code=404, detail="用户不存在")
+    if u.role == "superadmin" and admin["role"] != "superadmin":
+        raise HTTPException(status_code=403, detail="只有超级管理员才能删除超级管理员")
 
     from ..audit import log as audit_log
     audit_log(db, admin["username"], "delete", "user", u.id, {"username": u.username})

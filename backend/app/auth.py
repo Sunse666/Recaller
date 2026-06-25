@@ -70,6 +70,9 @@ def verify_token_full(token: str) -> dict | None:
         ).first()
         if not entry:
             return None
+        new_expiry = now + datetime.timedelta(hours=24)
+        db.query(AuthToken).filter(AuthToken.id == entry.id).update({"expires_at": new_expiry})
+        db.commit()
         return {"uid": entry.uid, "username": entry.username, "role": entry.role}
     finally:
         db.close()
@@ -147,9 +150,25 @@ def require_admin(
     entry = verify_token_full(token)
     if not entry:
         raise HTTPException(status_code=401, detail="未登录或令牌已过期")
-    if entry["role"] != "admin":
+    if entry["role"] not in ("admin", "superadmin"):
         raise HTTPException(status_code=403, detail="需要管理员权限")
     return entry
+
+
+def require_superadmin(
+    request: Request,
+    creds: HTTPAuthorizationCredentials | None = Depends(security),
+) -> dict:
+    token = get_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="未登录或令牌已过期")
+    entry = verify_token_full(token)
+    if not entry:
+        raise HTTPException(status_code=401, detail="未登录或令牌已过期")
+    if entry["role"] != "superadmin":
+        raise HTTPException(status_code=403, detail="需要超级管理员权限")
+    return entry
+
 
 def require_user(
     request: Request,
@@ -179,7 +198,7 @@ def get_user_by_uid(db: Session, uid: str) -> User | None:
 def require_board_owner(db: Session, board_id: int, user: dict):
     if board_id is None:
         return
-    if user["role"] == "admin":
+    if user["role"] in ("admin", "superadmin"):
         return
     from .models import Board, User as UserModel
     u = db.query(UserModel).filter(UserModel.uid == user["uid"]).first()
@@ -214,7 +233,7 @@ def require_person_owner(db: Session, person_id: int, user: dict):
         raise HTTPException(status_code=404, detail="条目不存在")
     if p.board_id is None:
         return p
-    if user["role"] == "admin":
+    if user["role"] in ("admin", "superadmin"):
         return p
     u = db.query(UserModel).filter(UserModel.uid == user["uid"]).first()
     if not u:

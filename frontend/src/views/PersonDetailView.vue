@@ -18,6 +18,34 @@ const boardType = ref('image')
 
 const notFound = ref(false)
 const loading = ref(true)
+const CONTENT_IMG_RE = /!\[([^\]]*)\]\(([^,\s)]+)(?:\s*,\s*(?:x\s*[=:]\s*)?(\d+)(?:\s*,\s*(?:y\s*[=:]\s*)?(\d+))?\s*)?\)/g
+
+function parseContent(raw) {
+  if (!raw) return []
+  const blocks = []
+  let lastIdx = 0
+  let match
+  while ((match = CONTENT_IMG_RE.exec(raw)) !== null) {
+    const textBefore = raw.slice(lastIdx, match.index).trim()
+    if (textBefore) blocks.push({ type: 'text', value: textBefore })
+    blocks.push({
+      type: 'image',
+      alt: match[1],
+      url: match[2],
+      w: match[3] ? parseInt(match[3]) || null : null,
+      h: match[4] ? parseInt(match[4]) || null : null,
+    })
+    lastIdx = match.index + match[0].length
+  }
+  const textAfter = raw.slice(lastIdx).trim()
+  if (textAfter) blocks.push({ type: 'text', value: textAfter })
+  return blocks
+}
+
+const contentBlocks = computed(() => person.value ? parseContent(person.value.notes) : [])
+const lightbox = ref({ show: false, url: '', alt: '' })
+function openLightbox(blk) { lightbox.value = { show: true, url: blk.url, alt: blk.alt } }
+function closeLightbox() { lightbox.value.show = false }
 
 async function loadPerson() {
   const name = route.params.personName
@@ -77,7 +105,7 @@ watch(() => route.params.personName, loadPerson)
 <template>
   <div v-if="notFound" class="min-h-screen bg-pink-50/30 flex items-center justify-center">
     <div class="text-center">
-      <div class="text-6xl mb-4">🔍</div>
+      <div class="text-6xl mb-4"></div>
       <p class="text-xl font-bold text-gray-600 mb-2">{{ labels.personDetailNotFound }}</p>
       <p class="text-gray-400 mb-6">{{ labels.personDetailNotFoundHint(route.params.personName) }}</p>
       <router-link to="/" class="px-6 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-dark transition">{{ labels.backHome }}</router-link>
@@ -127,9 +155,35 @@ watch(() => route.params.personName, loadPerson)
               class="px-2 py-0.5 text-xs rounded-full bg-blue-50 text-blue-600"
             >{{ tag }}</span>
           </div>
-          <p v-if="person.notes" class="text-gray-500 text-sm mt-2">{{ person.notes }}</p>
         </div>
       </div>
+
+      <section v-if="contentBlocks.length > 0" class="bg-white rounded-xl p-6 shadow-sm border border-pink-50">
+        <h3 class="font-bold mb-4 text-gray-800">内容</h3>
+        <div class="space-y-5">
+          <template v-for="(blk, i) in contentBlocks" :key="i">
+            <p v-if="blk.type === 'text'" class="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{{ blk.value }}</p>
+            <div v-else-if="blk.type === 'image'" class="relative">
+              <img
+                :src="blk.url"
+                :alt="blk.alt"
+                :style="{ maxWidth: blk.w ? blk.w + 'px' : '100%', height: blk.h ? blk.h + 'px' : 'auto' }"
+                class="rounded-xl cursor-pointer hover:shadow-lg transition max-h-[70vh] object-contain"
+                @click="openLightbox(blk)"
+                @error="e => e.target.style.display = 'none'"
+              />
+            </div>
+          </template>
+        </div>
+      </section>
+
+      <Teleport to="body">
+        <div v-if="lightbox.show" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-8" @click="closeLightbox">
+          <img :src="lightbox.url" :alt="lightbox.alt" class="max-w-full max-h-full object-contain rounded-xl" @click.stop />
+          <button @click="closeLightbox" class="absolute top-4 right-4 text-white text-3xl hover:text-gray-300">&times;</button>
+          <p v-if="lightbox.alt" class="absolute bottom-4 text-white/70 text-sm">{{ lightbox.alt }}</p>
+        </div>
+      </Teleport>
 
       <section v-if="boardType === 'friend'" class="bg-white rounded-xl p-6 shadow-sm border border-pink-50">
         <h3 class="font-bold mb-4 text-primary">{{ labels.personDetailAccounts }}</h3>

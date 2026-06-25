@@ -18,6 +18,7 @@ def _person_to_brief(p: Person) -> schemas.PersonBrief:
         circle_tags=json.loads(p.circle_tags or "[]"),
         impression_tags=json.loads(p.impression_tags or "[]"),
         importance=p.importance,
+        notes=decrypt(p.notes) if p.notes else None,
         account_count=len(p.accounts) if p.accounts else 0,
         board_id=p.board_id,
     )
@@ -61,7 +62,7 @@ def list_persons(
     elif user is None:
         public_ids = [b.id for b in db.query(Board).filter(Board.is_public == True).all()]
         query = query.filter(Person.board_id.in_(public_ids))
-    elif user["role"] != "admin":
+    elif user["role"] not in ("admin", "superadmin"):
         u = get_user_by_uid(db, user["uid"])
         if u:
             own_ids = [b.id for b in db.query(Board).filter(Board.user_id == u.id).all()]

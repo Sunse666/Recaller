@@ -30,6 +30,7 @@ Thumbs.db
 .env
 .env.local
 encryption.key
+pass.md
 
 # Docker
 data/

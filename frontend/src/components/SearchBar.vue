@@ -14,7 +14,7 @@ watch(query, (val) => {
 
 <template>
   <div class="relative">
-    <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+    <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></span>
     <input
       v-model="query"
       type="text"
