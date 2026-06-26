@@ -7,7 +7,6 @@ import sqlite3
 DB_PATH = os.environ.get("DATA_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "data"))
 DB_PATH = os.path.join(DB_PATH, "recaller.db")
 
-
 def get_conn():
     return sqlite3.connect(DB_PATH)
 
@@ -15,7 +14,6 @@ def get_conn():
 def hash_password(password: str) -> str:
     import bcrypt
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
 
 def reset_admin():
     if not os.path.exists(DB_PATH):
@@ -55,7 +53,6 @@ def reset_admin():
         sys.exit(1)
     finally:
         conn.close()
-
 
 if __name__ == "__main__":
     reset_admin()

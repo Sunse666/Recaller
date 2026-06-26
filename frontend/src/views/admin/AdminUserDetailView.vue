@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../../api/client'
 import { useBoardStore } from '../../stores/boards'
+import { getThumbUrl } from '../../utils/images'
 
 const route = useRoute()
 const router = useRouter()
@@ -44,7 +45,7 @@ function goBack() {
     <div v-else>
       <div class="bg-white rounded-xl border border-gray-100 p-5 mb-6">
         <div class="flex items-center gap-4">
-          <img v-if="user.avatar" :src="user.avatar" class="w-12 h-12 rounded-full object-cover" />
+          <img v-if="user.avatar" :src="getThumbUrl(user.avatar)" loading="lazy" class="w-12 h-12 rounded-full object-cover" @error="e => { if (user.avatar && e.target.src !== user.avatar) e.target.src = user.avatar }" />
           <div v-else class="w-12 h-12 rounded-full bg-gradient-to-br from-pink-400 to-blue-400 flex items-center justify-center text-white text-lg font-bold">
             {{ (user.username || '?')[0].toUpperCase() }}
           </div>
@@ -56,12 +57,12 @@ function goBack() {
               <span :class="user.enabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
                 class="px-2 py-0.5 rounded-full text-xs font-medium">{{ user.enabled ? '已启用' : '已禁用' }}</span>
             </div>
-            <div class="flex gap-4 mt-1 text-xs text-gray-400">
+            <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-gray-400">
               <span>UID: {{ user.uid }}</span>
               <span>注册: {{ user.created_at ? user.created_at.slice(0, 10) : '-' }}</span>
               <span>最后登录: {{ user.last_login ? user.last_login.slice(0, 10) : '从未' }}</span>
             </div>
-            <div v-if="user.limits && Object.keys(user.limits).length > 0" class="flex gap-3 mt-2 text-xs">
+            <div v-if="user.limits && Object.keys(user.limits).length > 0" class="flex flex-wrap gap-2 mt-2 text-xs">
               <span class="bg-gray-100 px-2 py-0.5 rounded">
                 上传: {{ user.limits.upload_rate_per_min === 0 ? '不限' : user.limits.upload_rate_per_min + '次/分' }}
               </span>

@@ -45,7 +45,7 @@ onMounted(fetchLogs)
 
     <div class="flex flex-wrap items-center gap-3 mb-4">
       <input v-model="username" @keyup.enter="fetchLogs" placeholder="操作人..."
-        class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-primary w-32" />
+        class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-primary w-36 sm:w-44" />
       <select v-model="action" @change="fetchLogs" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg outline-none">
         <option value="">全部操作</option>
         <option v-for="a in actionOptions.filter(Boolean)" :key="a" :value="a">{{ a }}</option>
@@ -59,7 +59,8 @@ onMounted(fetchLogs)
     </div>
 
     <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
-      <table class="w-full text-sm">
+      <div class="overflow-x-auto">
+      <table class="w-full text-sm min-w-[600px]">
         <thead class="bg-gray-50 text-gray-500">
           <tr>
             <th class="px-4 py-3 text-left font-medium">时间</th>
@@ -92,6 +93,7 @@ onMounted(fetchLogs)
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <div v-if="totalPages() > 1" class="flex items-center justify-center gap-2 mt-4">

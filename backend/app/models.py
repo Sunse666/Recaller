@@ -16,6 +16,8 @@ class User(Base):
     password_hash = Column(String(200), nullable=False)
     role = Column(String(10), nullable=False, default="user")
     enabled = Column(Boolean, default=True, nullable=False)
+    email = Column(String(200), unique=True, nullable=True)
+    email_verified = Column(Boolean, default=False, nullable=False)
     avatar = Column(String(500), nullable=True)
     limits = Column(Text, default="{}")
     created_at = Column(DateTime, default=_utcnow)
@@ -37,6 +39,7 @@ class Board(Base):
     board_type = Column(String(20), nullable=False, default="image")
     field_config = Column(Text, default="{}")
     is_public = Column(Boolean, default=False)
+    random_order = Column(Boolean, default=False, nullable=False)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=_utcnow)
 
@@ -61,6 +64,7 @@ class Person(Base):
     importance = Column(Integer, default=0)
     notes = Column(Text, nullable=True)
     birthday = Column(String(20), nullable=True)
+    allow_download = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
@@ -169,6 +173,18 @@ class AuthToken(Base):
     uid = Column(String(21), nullable=False)
     role = Column(String(10), nullable=False)
     expires_at = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, default=_utcnow)
+
+class EmailVerification(Base):
+    __tablename__ = "email_verifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(200), nullable=False, index=True)
+    code = Column(String(10), nullable=False)
+    purpose = Column(String(20), nullable=False, default="register")
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False, nullable=False)
+    attempts = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=_utcnow)
 
 class SystemConfig(Base):

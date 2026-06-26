@@ -21,13 +21,31 @@ export const api = {
   login(username, password) {
     return request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) })
   },
+  loginByCode(email, code) {
+    return request('/auth/login-by-code', { method: 'POST', body: JSON.stringify({ email, code }) })
+  },
+  sendCode(email) {
+    return request('/auth/send-code', { method: 'POST', body: JSON.stringify({ email }) })
+  },
+  sendLoginCode(email) {
+    return request('/auth/send-login-code', { method: 'POST', body: JSON.stringify({ email }) })
+  },
+  registerEmail(email, code, username, password) {
+    return request('/auth/register-email', { method: 'POST', body: JSON.stringify({ email, code, username, password }) })
+  },
   register(username, password) {
     return request('/auth/register', { method: 'POST', body: JSON.stringify({ username, password }) })
   },
   me() { return request('/auth/me') },
   logout() { return request('/auth/logout', { method: 'POST' }) },
-  changePassword(old_password, new_password) {
-    return request('/auth/change-password', { method: 'POST', body: JSON.stringify({ old_password, new_password }) })
+  sendPwdCode() {
+    return request('/auth/send-pwd-code', { method: 'POST' })
+  },
+  changePassword(old_password, new_password, code = null) {
+    return request('/auth/change-password', { method: 'POST', body: JSON.stringify({ old_password, new_password, code }) })
+  },
+  changeEmail(email, code) {
+    return request('/auth/change-email', { method: 'POST', body: JSON.stringify({ email, code }) })
   },
   changeUsername(username) {
     return request('/auth/change-username', { method: 'POST', body: JSON.stringify({ username }) })
@@ -44,6 +62,9 @@ export const api = {
     formData.append('file', file)
     return request('/upload', { method: 'POST', body: formData, headers: {} })
   },
+
+  // images
+  listImages(page = 1, pageSize = 50) { return request(`/images?page=${page}&page_size=${pageSize}`) },
 
   // users
   getUserProfile(uid) { return request(`/users/${uid}`) },

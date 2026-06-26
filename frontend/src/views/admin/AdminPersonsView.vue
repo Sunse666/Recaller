@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { api } from '../../api/client'
 import { useBoardStore } from '../../stores/boards'
 import { useLabels } from '../../utils/labels'
+import { getThumbUrl } from '../../utils/images'
 
 const boardStoreLocal = useBoardStore()
 const labels = useLabels()
@@ -48,6 +49,7 @@ const emptyForm = () => ({
   importance: 0,
   notes: '',
   birthday: '',
+  allow_download: false,
 })
 const form = ref(emptyForm())
 const circleInput = ref('')
@@ -58,20 +60,30 @@ const accForm = ref({ account_type: 'QQ', account_identifier: '', current_nickna
 const accSaving = ref(false)
 
 const sharedBanners = ref([])
+const bannerPage = ref(1)
+const bannerTotal = ref(0)
+const bannerPageSize = 12
 const notesEl = ref(null)
 
 async function loadSharedBanners() {
   try {
-    const boardStore = useBoardStore()
-    await boardStore.fetchBoards()
-    const seen = new Set()
-    for (const b of boardStore.boards) {
-      const fc = typeof b.field_config === 'object' ? b.field_config : {}
-      for (const url of (fc.bannerImages || [])) {
-        if (!seen.has(url)) { seen.add(url); sharedBanners.value.push(url) }
-      }
-    }
+    const data = await api.listImages(bannerPage.value, bannerPageSize)
+    sharedBanners.value = (data.items || []).map(f => f.url)
+    bannerTotal.value = data.total || 0
   } catch {}
+}
+
+function nextBannerPage() {
+  if (bannerPage.value * bannerPageSize < bannerTotal.value) {
+    bannerPage.value++
+    loadSharedBanners()
+  }
+}
+function prevBannerPage() {
+  if (bannerPage.value > 1) {
+    bannerPage.value--
+    loadSharedBanners()
+  }
 }
 
 function insertImageToNotes(url) {
@@ -131,6 +143,7 @@ async function goEdit(p) {
     importance: p.importance || 0,
     notes: p.notes || '',
     birthday: p.birthday || '',
+    allow_download: p.allow_download || false,
   }
   editingPerson.value = p
   accounts.value = await api.listAccounts(p.id)
@@ -202,26 +215,29 @@ watch(() => boardStoreLocal.currentBoardId, () => {
 <template>
   <div>
     <template v-if="view === 'list'">
-      <div class="flex items-center justify-between mb-5">
+      <div class="flex items-center justify-between mb-5 animate-fade-in-down">
         <h2 class="text-lg font-bold">{{ labels.cardManage }}</h2>
-        <button @click="goCreate" class="px-4 py-2 bg-primary text-white text-sm rounded-xl hover:bg-primary-dark transition shadow-sm">
+        <button @click="goCreate" class="px-4 py-2 bg-primary text-white text-sm rounded-xl transition-all duration-300 hover:bg-primary-dark hover:shadow-lg hover:shadow-primary/25 active:scale-95">
           {{ labels.addCard }}
         </button>
       </div>
 
-      <div class="mb-4">
+      <div class="mb-4 animate-fade-in-up">
         <input
           v-model="search"
           @input="loadPersons"
           :placeholder="labels.searchCard"
-          class="w-full max-w-sm px-4 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary focus:bg-pink-50/30 transition"
+          class="w-full max-w-sm px-4 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:bg-pink-50/30 focus:scale-[1.02] focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)]"
         />
       </div>
 
-      <div class="bg-white rounded-xl border border-pink-100 overflow-hidden">
-        <div v-if="loading" class="text-center text-gray-400 py-10">{{ labels.loading }}</div>
-        <div v-else-if="persons.length === 0" class="text-center text-gray-400 py-10">{{ labels.noData }}</div>
-        <table v-else class="w-full text-sm">
+      <div class="bg-white rounded-xl border border-pink-100 overflow-hidden animate-fade-in-up">
+        <div v-if="loading" class="text-center text-gray-400 py-10">
+          <div class="inline-block w-6 h-6 rounded-full border-2 border-pink-100 border-t-primary animate-spin" />
+        </div>
+        <div v-else-if="persons.length === 0" class="text-center text-gray-400 py-10 animate-fade-in-up">{{ labels.noData }}</div>
+        <div v-else class="overflow-x-auto -mx-1">
+        <table class="w-full text-sm min-w-[580px]">
           <thead class="bg-pink-50/30 text-gray-500 text-xs">
             <tr>
               <th class="text-left px-4 py-2.5 font-normal">{{ labels.tableCard }}</th>
@@ -231,11 +247,11 @@ watch(() => boardStoreLocal.currentBoardId, () => {
               <th class="text-right px-4 py-2.5 font-normal">{{ labels.tableActions }}</th>
             </tr>
           </thead>
-          <tbody>
-            <tr v-for="p in persons" :key="p.id" class="border-t border-pink-50 hover:bg-pink-50/30 transition">
+          <tbody class="animate-stagger">
+            <tr v-for="p in persons" :key="p.id" class="border-t border-pink-50 transition-all duration-300 hover:bg-pink-50/40 hover:scale-[1.002]">
               <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
-                  <img :src="p.avatar || '/default-avatar.svg'" class="w-8 h-8 rounded-full object-cover bg-pink-100 shrink-0" />
+                  <img :src="getThumbUrl(p.avatar) || '/default-avatar.svg'" loading="lazy" class="w-8 h-8 rounded-full object-cover bg-pink-100 shrink-0 transition-transform duration-300 hover:scale-125" @error="e => { if (p.avatar && e.target.src !== p.avatar) e.target.src = p.avatar }" />
                   <div class="min-w-0">
                     <p class="font-medium truncate">{{ p.name }}</p>
                     <p v-if="p.remark" class="text-xs text-gray-400 truncate">{{ p.remark }}</p>
@@ -249,7 +265,7 @@ watch(() => boardStoreLocal.currentBoardId, () => {
                     v-for="a in allAccounts[p.id]"
                     :key="a.id"
                     :title="a.account_identifier"
-                    class="px-1.5 py-0.5 text-xs rounded"
+                    class="px-1.5 py-0.5 text-xs rounded transition-all duration-200 hover:scale-110"
                     :class="{
                       'bg-blue-50 text-blue-600': a.account_type === 'QQ',
                       'bg-green-50 text-green-600': a.account_type === '微信',
@@ -263,63 +279,70 @@ watch(() => boardStoreLocal.currentBoardId, () => {
               </td>
               <td class="px-4 py-3">
                 <span v-if="p.circle_tags.length" class="flex flex-wrap gap-1">
-                  <span v-for="t in p.circle_tags" :key="t" class="px-2 py-0.5 text-xs bg-blue-50 text-blue-600 rounded-full">{{ t }}</span>
+                  <span v-for="t in p.circle_tags" :key="t" class="px-2 py-0.5 text-xs bg-blue-50 text-blue-600 rounded-full transition-all duration-200 hover:scale-110">{{ t }}</span>
                 </span>
                 <span v-else class="text-gray-300">-</span>
               </td>
               <td class="px-4 py-3">
-                <span class="text-yellow-400">{{ '★'.repeat(Math.min(p.importance, 5)) || '-' }}</span>
+                <span class="text-yellow-400 transition-all duration-300 hover:scale-110 inline-block">{{ '★'.repeat(Math.min(p.importance, 5)) || '-' }}</span>
               </td>
               <td class="px-4 py-3 text-right">
-                <button @click="goEdit(p)" class="text-primary hover:underline text-xs mr-3">{{ labels.edit }}</button>
-                <button @click="doDelete(p.id)" class="text-red-400 hover:underline text-xs">{{ labels.delete }}</button>
+                <button @click="goEdit(p)" class="text-primary hover:underline text-xs mr-3 transition-all duration-200 hover:scale-110 inline-block">{{ labels.edit }}</button>
+                <button @click="doDelete(p.id)" class="text-red-400 hover:underline text-xs transition-all duration-200 hover:scale-110 inline-block">{{ labels.delete }}</button>
               </td>
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
     </template>
 
     <template v-else>
-      <div class="max-w-2xl">
+      <div class="max-w-2xl animate-scale-in">
         <div class="flex items-center gap-3 mb-5">
-          <button @click="goList" class="text-gray-400 hover:text-gray-600">&larr;</button>
+          <button @click="goList" class="text-gray-400 hover:text-gray-600 transition-all duration-300 hover:scale-110">&larr;</button>
           <h2 class="text-lg font-bold">{{ view === 'create' ? labels.addCardTitle : labels.editCardTitle }}</h2>
         </div>
 
-        <div class="bg-white rounded-xl p-6 space-y-4">
-          <div class="grid grid-cols-2 gap-4">
-            <div>
+        <div class="bg-white rounded-xl p-6 space-y-4 shadow-sm border border-pink-50">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div :class="{ 'col-span-2': !isShuoshuo }">
               <label class="text-xs text-gray-500 mb-1 block">{{ tl('cardNameLabel') || labels.cardNameLabel }}</label>
-              <input v-model="form.name" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+              <input v-model="form.name" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)]" />
             </div>
-            <div v-if="!isShuoshuo">
+            <div v-if="!isShuoshuo" :class="{ 'col-span-2': !isFriend }">
               <label class="text-xs text-gray-500 mb-1 block">{{ tl('remarkLabel') || labels.remarkLabel }}</label>
-              <input v-model="form.remark" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+              <input v-model="form.remark" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)]" />
             </div>
             <div v-if="!isShuoshuo" class="col-span-2">
               <label class="text-xs text-gray-500 mb-1 block">{{ tl('signatureLabel') || labels.signatureLabel }}</label>
-              <input v-model="form.signature" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+              <input v-model="form.signature" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)]" />
             </div>
-            <div v-if="!isShuoshuo">
+            <div v-if="!isShuoshuo && !isFriend" class="col-span-2">
               <label class="text-xs text-gray-500 mb-1 block">{{ tl('locationLabel') || labels.locationLabel }}</label>
-              <input v-model="form.location" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+              <input v-model="form.location" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)]" />
             </div>
-            <div v-if="isFriend">
-              <label class="text-xs text-gray-500 mb-1 block">{{ labels.birthdayLabel }}</label>
-              <input v-model="form.birthday" :placeholder="labels.birthdayPlaceholder" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
-            </div>
+            <template v-if="isFriend">
+              <div>
+                <label class="text-xs text-gray-500 mb-1 block">{{ tl('locationLabel') || labels.locationLabel }}</label>
+                <input v-model="form.location" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)]" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-500 mb-1 block">{{ labels.birthdayLabel }}</label>
+                <input v-model="form.birthday" :placeholder="labels.birthdayPlaceholder" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)]" />
+              </div>
+            </template>
             <div class="col-span-2">
               <label class="text-xs text-gray-500 mb-1 block">{{ labels.avatarLabel }}</label>
-              <input v-model="form.avatar" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+              <input v-model="form.avatar" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)]" />
             </div>
             <div v-if="!isShuoshuo" class="col-span-2">
               <label class="text-xs text-gray-500 mb-1 block">卡片背景 URL</label>
-              <input v-model="form.card_bg" placeholder="卡片背景图片链接" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
+              <input v-model="form.card_bg" placeholder="卡片背景图片链接" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)]" />
             </div>
             <div>
               <label class="text-xs text-gray-500 mb-1 block">{{ tl('importanceLabel') || labels.importanceLabel }}</label>
-              <select v-model.number="form.importance" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none">
+              <select v-model.number="form.importance" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary">
                 <option :value="0">{{ labels.importanceNone }}</option>
                 <option :value="1">★ 1 星</option>
                 <option :value="2">★ 2 星</option>
@@ -330,16 +353,24 @@ watch(() => boardStoreLocal.currentBoardId, () => {
             </div>
           </div>
 
+          <div v-if="isImage" class="flex items-center gap-3 py-1">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" v-model="form.allow_download" class="sr-only peer" />
+              <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary transition-colors"></div>
+              <span class="ml-3 text-sm text-gray-600">允许下载原图</span>
+            </label>
+          </div>
+
           <div>
             <label class="text-xs text-gray-500 mb-1 block">{{ labels.circleTagsLabel }}</label>
             <div class="flex gap-2 mb-2">
-              <input v-model="circleInput" @keyup.enter="addCircleTag" :placeholder="labels.tagPlaceholder" class="flex-1 px-3 py-1.5 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
-              <button @click="addCircleTag" class="px-3 py-1.5 text-sm bg-pink-50/50 rounded-xl hover:bg-pink-100">{{ labels.addTag }}</button>
+              <input v-model="circleInput" @keyup.enter="addCircleTag" :placeholder="labels.tagPlaceholder" class="flex-1 px-3 py-1.5 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)]" />
+              <button @click="addCircleTag" class="px-4 py-2 text-sm bg-pink-50/50 rounded-xl transition-all duration-300 hover:bg-pink-100 active:scale-95 shrink-0">{{ labels.addTag }}</button>
             </div>
             <div class="flex flex-wrap gap-1.5">
-              <span v-for="(t, i) in form.circle_tags" :key="i" class="px-2 py-0.5 text-xs bg-blue-50 text-blue-600 rounded-full flex items-center gap-1">
+              <span v-for="(t, i) in form.circle_tags" :key="i" class="tag-item px-2 py-0.5 text-xs bg-blue-50 text-blue-600 rounded-full flex items-center gap-1">
                 {{ t }}
-                <button @click="removeCircleTag(i)" class="text-blue-400 hover:text-red-500">&times;</button>
+                <button @click="removeCircleTag(i)" class="text-blue-400 hover:text-red-500 transition-colors duration-200">&times;</button>
               </span>
             </div>
           </div>
@@ -347,41 +378,52 @@ watch(() => boardStoreLocal.currentBoardId, () => {
           <div v-if="isFriend">
             <label class="text-xs text-gray-500 mb-1 block">{{ labels.impressionTagsLabel }}</label>
             <div class="flex gap-2 mb-2">
-              <input v-model="impressionInput" @keyup.enter="addImpressionTag" :placeholder="labels.tagPlaceholder" class="flex-1 px-3 py-1.5 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
-              <button @click="addImpressionTag" class="px-3 py-1.5 text-sm bg-pink-50/50 rounded-xl hover:bg-pink-100">{{ labels.addTag }}</button>
+              <input v-model="impressionInput" @keyup.enter="addImpressionTag" :placeholder="labels.tagPlaceholder" class="flex-1 px-3 py-1.5 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)]" />
+              <button @click="addImpressionTag" class="px-4 py-2 text-sm bg-pink-50/50 rounded-xl transition-all duration-300 hover:bg-pink-100 active:scale-95 shrink-0">{{ labels.addTag }}</button>
             </div>
             <div class="flex flex-wrap gap-1.5">
-              <span v-for="(t, i) in form.impression_tags" :key="i" class="px-2 py-0.5 text-xs bg-amber-50 text-amber-600 rounded-full flex items-center gap-1">
+              <span v-for="(t, i) in form.impression_tags" :key="i" class="tag-item px-2 py-0.5 text-xs bg-amber-50 text-amber-600 rounded-full flex items-center gap-1">
                 {{ t }}
-                <button @click="removeImpressionTag(i)" class="text-amber-400 hover:text-red-500">&times;</button>
+                <button @click="removeImpressionTag(i)" class="text-amber-400 hover:text-red-500 transition-colors duration-200">&times;</button>
               </span>
             </div>
           </div>
 
           <div>
             <label class="text-xs text-gray-500 mb-1 block">{{ tl('notesLabel') || labels.notesLabel }}</label>
-            <textarea ref="notesEl" v-model="form.notes" rows="4" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary resize-none"></textarea>
+            <textarea ref="notesEl" v-model="form.notes" rows="4" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)] resize-none"></textarea>
             <p class="text-xs text-gray-400 mt-1">支持图片：<code class="bg-gray-100 px-1 rounded">![描述](URL)</code> 或 <code class="bg-gray-100 px-1 rounded">![描述](URL,x=宽,y=高)</code> 或 <code class="bg-gray-100 px-1 rounded">![描述](URL,宽,高)</code></p>
           </div>
-          <div v-if="sharedBanners.length > 0" class="border border-dashed border-pink-100 rounded-xl p-3">
-            <p class="text-xs text-gray-400 mb-2">点击图床图片插入到内容：</p>
-            <div class="flex flex-wrap gap-2">
+          <div class="border border-dashed border-pink-100 rounded-xl p-3 animate-fade-in-up">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-xs text-gray-400">点击图床图片插入到内容：</p>
+              <div v-if="bannerTotal > bannerPageSize" class="flex items-center gap-1">
+                <button @click="prevBannerPage" :disabled="bannerPage <= 1" class="px-2 py-0.5 text-xs text-primary hover:bg-pink-50 rounded disabled:opacity-30 disabled:cursor-not-allowed transition">&larr;</button>
+                <span class="text-xs text-gray-400">{{ bannerPage }} / {{ Math.ceil(bannerTotal / bannerPageSize) }}</span>
+                <button @click="nextBannerPage" :disabled="bannerPage * bannerPageSize >= bannerTotal" class="px-2 py-0.5 text-xs text-primary hover:bg-pink-50 rounded disabled:opacity-30 disabled:cursor-not-allowed transition">&rarr;</button>
+              </div>
+            </div>
+            <div v-if="sharedBanners.length > 0" class="flex flex-wrap gap-2">
               <img
                 v-for="(url, i) in sharedBanners"
-                :key="i" :src="url"
-                class="w-14 h-14 object-cover rounded-lg cursor-pointer border-2 border-transparent hover:border-primary transition"
+                :key="(bannerPage - 1) * bannerPageSize + i"
+                :src="getThumbUrl(url)"
+                loading="lazy"
+                class="w-14 h-14 object-cover rounded-lg cursor-pointer border-2 border-transparent transition-all duration-300 hover:border-primary hover:scale-110 hover:shadow-md"
+                @error="e => { if (url && e.target.src !== url) e.target.src = url }"
                 @click="insertImageToNotes(url)"
                 title="点击插入到内容"
               />
             </div>
+            <p v-else class="text-xs text-gray-300">暂无图片，请先在图片管理中上传</p>
           </div>
 
-          <div v-if="view === 'edit' && isFriend" class="border-t border-pink-100 pt-4 mt-4">
+          <div v-if="view === 'edit' && isFriend" class="border-t border-pink-100 pt-4 mt-4 animate-fade-in-up">
             <h3 class="font-bold text-sm mb-3">{{ labels.tableAccounts }}{{ labels.cardManage }}</h3>
 
             <div v-if="accounts.length > 0" class="space-y-2 mb-4">
-              <div v-for="a in accounts" :key="a.id" class="flex items-center gap-3 px-3 py-2 bg-pink-50/30 rounded-xl">
-                <img :src="a.current_avatar || '/default-avatar.svg'" class="w-7 h-7 rounded-full object-cover bg-pink-100 shrink-0" />
+              <div v-for="a in accounts" :key="a.id" class="flex items-center gap-3 px-3 py-2 bg-pink-50/30 rounded-xl transition-all duration-300 hover:bg-pink-50">
+                <img :src="getThumbUrl(a.current_avatar) || '/default-avatar.svg'" loading="lazy" class="w-7 h-7 rounded-full object-cover bg-pink-100 shrink-0" @error="e => { if (a.current_avatar && e.target.src !== a.current_avatar) e.target.src = a.current_avatar }" />
                 <div class="flex-1 min-w-0">
                   <p class="text-sm">
                     <span
@@ -396,35 +438,52 @@ watch(() => boardStoreLocal.currentBoardId, () => {
                     <span v-if="a.current_nickname" class="text-gray-500 ml-1">· {{ a.current_nickname }}</span>
                   </p>
                 </div>
-                <button @click="doDeleteAccount(a.id)" class="text-red-400 text-xs hover:underline shrink-0">{{ labels.delete }}</button>
+                <button @click="doDeleteAccount(a.id)" class="text-red-400 text-xs hover:underline shrink-0 transition-all duration-200 hover:scale-110">{{ labels.delete }}</button>
               </div>
             </div>
             <div v-else class="text-sm text-gray-400 mb-3">{{ labels.noAccounts }}</div>
 
-            <div class="grid grid-cols-4 gap-2">
-              <select v-model="accForm.account_type" class="px-2 py-1.5 text-xs border border-pink-100 rounded-xl outline-none">
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+              <select v-model="accForm.account_type" class="px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary">
                 <option value="QQ">QQ</option>
                 <option value="微信">微信</option>
                 <option value="游戏ID">游戏ID</option>
                 <option value="其他">其他</option>
               </select>
-              <input v-model="accForm.account_identifier" placeholder="账号 *" class="px-2 py-1.5 text-xs border border-pink-100 rounded-xl outline-none focus:border-primary" />
-              <input v-model="accForm.current_nickname" placeholder="昵称" class="px-2 py-1.5 text-xs border border-pink-100 rounded-xl outline-none focus:border-primary" />
-              <button @click="doAddAccount" :disabled="accSaving" class="px-3 py-1.5 text-xs bg-primary text-white rounded-xl hover:bg-primary-dark disabled:opacity-50">
-                {{ accSaving ? '...' : labels.addTag }}
+              <input v-model="accForm.account_identifier" placeholder="账号 *" class="px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)]" />
+              <input v-model="accForm.current_nickname" placeholder="昵称" class="px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgba(236,72,153,0.08)]" />
+              <button @click="doAddAccount" :disabled="accSaving" class="px-4 py-2 text-sm bg-primary text-white rounded-xl transition-all duration-300 hover:bg-primary-dark hover:shadow-lg active:scale-95 disabled:opacity-50">
+                {{ accSaving ? '...' : '添加' }}
               </button>
             </div>
           </div>
 
           <div class="flex items-center gap-3 pt-2">
-            <button @click="doSave" :disabled="saving" class="px-6 py-2 bg-primary text-white text-sm rounded-xl hover:bg-primary-dark disabled:opacity-50 transition">
+            <button @click="doSave" :disabled="saving" class="px-6 py-2 bg-primary text-white text-sm rounded-xl transition-all duration-300 hover:bg-primary-dark hover:shadow-lg hover:shadow-primary/25 active:scale-95 disabled:opacity-50">
               {{ saving ? labels.saving : labels.save }}
             </button>
-            <button @click="goList" class="px-6 py-2 text-sm text-gray-500 hover:text-gray-700">{{ labels.cancel }}</button>
-            <span v-if="savingMessage" :class="savingMessage.includes('错误') ? 'text-red-500' : 'text-green-500'" class="text-sm">{{ savingMessage }}</span>
+            <button @click="goList" class="px-6 py-2 text-sm text-gray-500 hover:text-gray-700 transition-all duration-300">{{ labels.cancel }}</button>
+            <Transition name="msg-bounce">
+              <span v-if="savingMessage" :class="savingMessage.includes('错误') ? 'text-red-500' : 'text-green-500'" class="text-sm font-medium">{{ savingMessage }}</span>
+            </Transition>
           </div>
         </div>
       </div>
     </template>
   </div>
 </template>
+
+<style scoped>
+.tag-item {
+  animation: scaleIn 0.25s cubic-bezier(0.68, -0.55, 0.265, 1.55) both;
+}
+.msg-bounce-enter-active {
+  animation: bounceIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+.msg-bounce-leave-active {
+  transition: all 0.2s ease;
+}
+.msg-bounce-leave-to {
+  opacity: 0;
+}
+</style>

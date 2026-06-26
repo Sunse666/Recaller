@@ -29,7 +29,7 @@ const routes = [
 
   // user pages (public profile + management, same layout as admin)
   {
-    path: '/:uid(\\d+)',
+    path: '/:uid(-?\\d+)',
     component: () => import('../views/admin/AdminLayout.vue'),
     children: [
       { path: '', name: 'user-profile', component: () => import('../views/UserProfileView.vue') },
@@ -41,7 +41,7 @@ const routes = [
   },
 
   // legacy: global person detail
-  { path: '/:personName', redirect: to => `/1/default/${to.params.personName}` },
+  { path: '/:personName', redirect: '/login' },
 ]
 
 async function verifyAuth() {

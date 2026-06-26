@@ -13,7 +13,7 @@ const SKIP = new Set(['name','icon','description','appTitle','is_public',
   'avatarLabel','importanceLabel','importanceNone','circleTagsLabel','impressionTagsLabel','notesLabel','accountManageLabel'])
 const EXTRA = Object.keys(DEF).filter(k => !SKIP.has(k) && !k.startsWith('settings') && !k.startsWith('images') && !k.startsWith('appName') && !k.startsWith('login') && !k.startsWith('register') && !k.startsWith('username') && !k.startsWith('password') && !k.startsWith('confirmPassword') && !k.startsWith('avatarUpload') && !k.startsWith('changeAvatar') && !k.startsWith('changeUsername'))
 
-const form = ref({ name:'',icon:'',description:'',appTitle:'',is_public:false,board_type:'image',
+const form = ref({ name:'',icon:'',description:'',appTitle:'',is_public:false,random_order:false,board_type:'image',
   card_label:'',cards_label:'',group_label:'',groups_label:'',
   homeTitlePrefix:'',countUnit:'',manageSuffix:'',addPrefix:'',searchPrefix:'',
   remarkLabel:'',signatureLabel:'',locationLabel:'',birthdayLabel:'',birthdayPlaceholder:'',
@@ -35,9 +35,10 @@ function loadBoard() {
   for (const k of boardFields) form.value[k] = (b[k] || '')
   for (const k of EXTRA) form.value[k] = fc[k] || ''
   for (const k of Object.keys(form.value)) {
-    if (k !== 'is_public' && form.value[k] === '' && fc[k]) form.value[k] = fc[k]
+    if (k !== 'is_public' && k !== 'random_order' && form.value[k] === '' && fc[k]) form.value[k] = fc[k]
   }
   form.value.is_public = b.is_public || false
+  form.value.random_order = b.random_order || false
   if (!form.value.board_type) form.value.board_type = 'image'
 }
 
@@ -48,7 +49,7 @@ async function doSave() {
   try {
     const fc = {}
     for (const k of Object.keys(form.value)) {
-      if (!['name', 'icon', 'description', 'card_label', 'cards_label', 'group_label', 'groups_label', 'is_public', 'board_type'].includes(k)) {
+      if (!['name', 'icon', 'description', 'card_label', 'cards_label', 'group_label', 'groups_label', 'is_public', 'board_type', 'random_order'].includes(k)) {
         if (form.value[k]) fc[k] = form.value[k]
       }
     }
@@ -57,7 +58,7 @@ async function doSave() {
       card_label: form.value.card_label, cards_label: form.value.cards_label,
       group_label: form.value.group_label, groups_label: form.value.groups_label,
       board_type: form.value.board_type,
-      field_config: fc, is_public: form.value.is_public,
+      field_config: fc, is_public: form.value.is_public, random_order: form.value.random_order,
     })
     message.value = labels.value.saveSuccess
     await boardStore.fetchBoards()
@@ -90,7 +91,7 @@ onMounted(async () => { await boardStore.fetchBoards(); loadBoard() })
         <label class="text-xs text-gray-500 mb-1 block">{{ labels.boardNameLabel }}</label>
         <input v-model="form.name" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
       </div>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label class="text-xs text-gray-500 mb-1 block">{{ labels.iconLabel }}</label>
           <input v-model="form.icon" placeholder="" maxlength="2" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
@@ -123,7 +124,7 @@ onMounted(async () => { await boardStore.fetchBoards(); loadBoard() })
         <label class="text-xs text-gray-500 mb-1 block">{{ labels.cardPluralLabel }}</label>
         <input v-model="form.cards_label" :placeholder="DEF.cards_label" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
       </div>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label class="text-xs text-gray-500 mb-1 block">{{ labels.groupSingleLabel }}</label>
           <input v-model="form.group_label" :placeholder="DEF.group_label" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
@@ -139,7 +140,7 @@ onMounted(async () => { await boardStore.fetchBoards(); loadBoard() })
       <button @click="showFrameWords = !showFrameWords" class="flex items-center gap-2 text-sm text-primary hover:underline">
         {{ showFrameWords ? '▾' : '▸' }} {{ labels.frameWordsTitle }}
       </button>
-      <div v-if="showFrameWords" class="grid grid-cols-2 gap-3 pl-2">
+      <div v-if="showFrameWords" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-2">
         <div v-for="item in [
           { key: 'homeTitlePrefix', d: DEF.homeTitlePrefix || '(空)' },
           { key: 'countUnit', d: DEF.countUnit },
@@ -155,7 +156,7 @@ onMounted(async () => { await boardStore.fetchBoards(); loadBoard() })
       <button @click="showFormLabels = !showFormLabels" class="flex items-center gap-2 text-sm text-primary hover:underline">
         {{ showFormLabels ? '▾' : '▸' }} {{ labels.formLabelsTitle }}
       </button>
-      <div v-if="showFormLabels" class="grid grid-cols-2 gap-3 pl-2">
+      <div v-if="showFormLabels" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-2">
         <div v-for="item in [
           { key: 'remarkLabel', d: DEF.remarkLabel }, { key: 'signatureLabel', d: DEF.signatureLabel },
           { key: 'locationLabel', d: DEF.locationLabel }, { key: 'birthdayLabel', d: DEF.birthdayLabel },
@@ -172,7 +173,7 @@ onMounted(async () => { await boardStore.fetchBoards(); loadBoard() })
       <button @click="showAll = !showAll" class="flex items-center gap-2 text-sm text-primary hover:underline">
         {{ showAll ? '▾' : '▸' }} {{ labels.allTextTitle }}（{{ EXTRA.length }} 项）
       </button>
-      <div v-if="showAll" class="grid grid-cols-2 gap-3 pl-2 max-h-96 overflow-y-auto">
+      <div v-if="showAll" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-2 max-h-96 overflow-y-auto">
         <div v-for="k in EXTRA" :key="k">
           <label class="text-xs text-gray-400 mb-1 block">{{ DEF[k] ? '"' + DEF[k] + '"' : '(动态)' }} → <code class="text-[10px]">{{ k }}</code></label>
           <input v-model="form[k]" :placeholder="DEF[k] || ''" class="w-full px-3 py-2 text-sm border border-pink-100 rounded-xl outline-none focus:border-primary" />
@@ -188,6 +189,15 @@ onMounted(async () => { await boardStore.fetchBoards(); loadBoard() })
           <div class="w-9 h-5 bg-gray-300 peer-checked:bg-primary rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:start-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
         </label>
         <span class="text-xs text-gray-400">{{ form.is_public ? labels.publicVisible : labels.privateOnly }}</span>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <span class="text-xs text-gray-500">随机展示卡片</span>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" v-model="form.random_order" class="sr-only peer" />
+          <div class="w-9 h-5 bg-gray-300 peer-checked:bg-primary rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:start-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
+        </label>
+        <span class="text-xs text-gray-400">{{ form.random_order ? '卡片将随机排列展示' : '按默认顺序展示' }}</span>
       </div>
 
       <div class="bg-blue-50/50 rounded-xl p-4 text-sm">

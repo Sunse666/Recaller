@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any
 
 from ..database import get_db, DATA_DIR
 from ..models import User, Board, Person, Group, Account, AuthToken, AuditLog, SystemConfig
-from ..auth import require_admin, require_superadmin, hash_password, create_token, revoke_user_tokens, validate_password_strength
+from ..auth import require_admin, require_superadmin, hash_password, create_token, revoke_user_tokens, validate_password_strength, _next_available_uid
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -19,6 +19,8 @@ class UserListItem(BaseModel):
     username: str
     role: str
     enabled: bool
+    email: Optional[str] = None
+    email_verified: bool = False
     avatar: Optional[str] = None
     board_count: int = 0
     created_at: Optional[str] = None
@@ -32,12 +34,15 @@ class UserCreatePayload(BaseModel):
     role: str = Field(default="user", pattern="^(user|admin|superadmin)$")
     enabled: bool = True
     uid: Optional[str] = Field(default=None, min_length=1, max_length=21)
+    email: Optional[str] = Field(default=None, max_length=200)
     limits: Dict[str, Any] = {}
 
 class UserUpdatePayload(BaseModel):
     username: Optional[str] = Field(default=None, min_length=2, max_length=50)
+    password: Optional[str] = Field(default=None, min_length=8, max_length=128)
     role: Optional[str] = Field(default=None, pattern="^(user|admin|superadmin)$")
     enabled: Optional[bool] = None
+    email: Optional[str] = Field(default=None, max_length=200)
     limits: Optional[Dict[str, Any]] = None
 
 class ConfigPayload(BaseModel):
@@ -79,6 +84,8 @@ def list_users(
             username=u.username,
             role=u.role,
             enabled=u.enabled,
+            email=u.email,
+            email_verified=u.email_verified or False,
             avatar=u.avatar,
             board_count=board_count,
             created_at=u.created_at.isoformat() if u.created_at else None,
@@ -98,30 +105,32 @@ def create_user(data: UserCreatePayload, db: Session = Depends(get_db), admin: d
         existing_uid = db.query(User).filter(User.uid == data.uid).first()
         if existing_uid:
             raise HTTPException(status_code=409, detail=f"UID {data.uid} 已被占用")
+    if data.email:
+        existing_email = db.query(User).filter(User.email == data.email.strip().lower()).first()
+        if existing_email:
+            raise HTTPException(status_code=409, detail="该邮箱已被占用")
     err = validate_password_strength(data.password)
     if err:
         raise HTTPException(status_code=400, detail=err)
     u = User(
-        uid=data.uid or "0",
+        uid=data.uid or _next_available_uid(db),
         username=data.username,
         password_hash=hash_password(data.password),
         role=data.role,
         enabled=data.enabled,
+        email=data.email.strip().lower() if data.email else None,
+        email_verified=bool(data.email),
         limits=json.dumps(data.limits, ensure_ascii=False),
     )
     db.add(u)
     db.flush()
-    if not data.uid:
-        from sqlalchemy import func
-        max_id = db.query(func.max(User.id)).scalar() or 0
-        uid_num = max(11, max_id + 1)
-        u.uid = str(uid_num)
     from ..audit import log as audit_log
     audit_log(db, admin["username"], "create", "user", u.id, {"username": data.username, "role": data.role, "uid": u.uid})
     db.commit()
     db.refresh(u)
     return UserListItem(
         uid=u.uid, username=u.username, role=u.role, enabled=u.enabled,
+        email=u.email, email_verified=u.email_verified or False,
         avatar=u.avatar, board_count=0,
         created_at=u.created_at.isoformat() if u.created_at else None,
         limits=json.loads(u.limits or "{}"),
@@ -141,12 +150,34 @@ def update_user(uid: str, data: UserUpdatePayload, db: Session = Depends(get_db)
         u.username = data.username
         revoke_user_tokens(old_username)
 
+    is_super = admin["role"] == "superadmin"
+
     if data.role is not None:
-        if admin["role"] != "superadmin":
+        if not is_super:
             raise HTTPException(status_code=403, detail="只有超级管理员才能修改角色")
         if u.uid == admin["uid"] and data.role != "superadmin":
             raise HTTPException(status_code=400, detail="不能降级自己的超级管理员角色")
         u.role = data.role
+
+    if data.password is not None:
+        if not is_super:
+            raise HTTPException(status_code=403, detail="只有超级管理员才能修改密码")
+        err = validate_password_strength(data.password)
+        if err:
+            raise HTTPException(status_code=400, detail=err)
+        u.password_hash = hash_password(data.password)
+        revoke_user_tokens(u.username)
+
+    if data.email is not None:
+        if not is_super:
+            raise HTTPException(status_code=403, detail="只有超级管理员才能修改邮箱")
+        email = data.email.strip().lower()
+        if email:
+            existing = db.query(User).filter(User.email == email, User.uid != uid).first()
+            if existing:
+                raise HTTPException(status_code=409, detail="该邮箱已被其他用户占用")
+        u.email = email or None
+        u.email_verified = bool(email)
 
     if data.enabled is not None:
         if u.uid == admin["uid"] and not data.enabled:
@@ -163,6 +194,7 @@ def update_user(uid: str, data: UserUpdatePayload, db: Session = Depends(get_db)
     board_count = db.query(Board).filter(Board.user_id == u.id).count()
     return UserListItem(
         uid=u.uid, username=u.username, role=u.role, enabled=u.enabled,
+        email=u.email, email_verified=u.email_verified or False,
         avatar=u.avatar, board_count=board_count,
         created_at=u.created_at.isoformat() if u.created_at else None,
         limits=json.loads(u.limits or "{}"),
@@ -194,7 +226,7 @@ def delete_user(uid: str, db: Session = Depends(get_db), admin: dict = Depends(r
         shutil.rmtree(user_upload_dir, ignore_errors=True)
 
 @router.post("/users/{uid}/reset-password")
-def reset_user_password(uid: str, db: Session = Depends(get_db), admin: dict = Depends(require_admin)):
+def reset_user_password(uid: str, db: Session = Depends(get_db), admin: dict = Depends(require_superadmin)):
     u = db.query(User).filter(User.uid == uid).first()
     if not u:
         raise HTTPException(status_code=404, detail="用户不存在")
@@ -207,7 +239,7 @@ def reset_user_password(uid: str, db: Session = Depends(get_db), admin: dict = D
     return {"uid": uid, "new_password": new_password}
 
 @router.post("/users/{uid}/force-logout")
-def force_logout(uid: str, db: Session = Depends(get_db), admin: dict = Depends(require_admin)):
+def force_logout(uid: str, db: Session = Depends(get_db), admin: dict = Depends(require_superadmin)):
     u = db.query(User).filter(User.uid == uid).first()
     if not u:
         raise HTTPException(status_code=404, detail="用户不存在")
@@ -313,7 +345,6 @@ def update_config(data: ConfigPayload, db: Session = Depends(get_db), admin: dic
     return {"key": data.key, "value": data.value}
 
 public_router = APIRouter(prefix="/api/public", tags=["public"])
-
 
 @public_router.get("/config")
 def get_public_config(db: Session = Depends(get_db)):

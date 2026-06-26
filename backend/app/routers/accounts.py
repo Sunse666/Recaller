@@ -10,7 +10,6 @@ from .. import schemas
 
 router = APIRouter(prefix="/api/persons/{person_id}/accounts", tags=["accounts"])
 
-
 def _account_to_detail(a: Account) -> schemas.AccountDetail:
     return schemas.AccountDetail(
         id=a.id, person_id=a.person_id,
@@ -21,7 +20,6 @@ def _account_to_detail(a: Account) -> schemas.AccountDetail:
             for h in (a.nickname_histories or [])
         ],
     )
-
 
 @router.get("", response_model=list[schemas.AccountDetail])
 def list_accounts(person_id: int, db: Session = Depends(get_db), user: dict | None = Depends(optional_user)):
@@ -36,7 +34,6 @@ def list_accounts(person_id: int, db: Session = Depends(get_db), user: dict | No
     )
     return [_account_to_detail(a) for a in accounts]
 
-
 @router.post("", response_model=schemas.AccountDetail, status_code=201)
 def create_account(person_id: int, data: schemas.AccountCreate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
     p = require_person_owner(db, person_id, user)
@@ -49,7 +46,6 @@ def create_account(person_id: int, data: schemas.AccountCreate, db: Session = De
     audit_log(db, user["username"], "create", "account", a.id, {"person_id": person_id, "type": data.account_type, "identifier": data.account_identifier})
     db.commit(); db.refresh(a)
     return _account_to_detail(a)
-
 
 @router.put("/{account_id}", response_model=schemas.AccountDetail)
 def update_account(person_id: int, account_id: int, data: schemas.AccountUpdate, db: Session = Depends(get_db), user: dict = Depends(require_user)):
@@ -67,7 +63,6 @@ def update_account(person_id: int, account_id: int, data: schemas.AccountUpdate,
     db.commit(); db.refresh(a)
     return _account_to_detail(a)
 
-
 @router.delete("/{account_id}", status_code=204)
 def delete_account(person_id: int, account_id: int, db: Session = Depends(get_db), user: dict = Depends(require_user)):
     require_person_owner(db, person_id, user)
@@ -78,7 +73,6 @@ def delete_account(person_id: int, account_id: int, db: Session = Depends(get_db
     db.delete(a)
     audit_log(db, user["username"], "delete", "account", account_id, info)
     db.commit()
-
 
 @router.post("/{account_id}/nicknames", response_model=schemas.NicknameHistoryBrief, status_code=201)
 def add_nickname_history(
@@ -94,7 +88,6 @@ def add_nickname_history(
     audit_log(db, user["username"], "create", "nickname_history", h.id, {"account_id": account_id, "nickname": data.nickname})
     db.commit(); db.refresh(h)
     return h
-
 
 @router.delete("/{account_id}/nicknames/{history_id}", status_code=204)
 def remove_nickname_history(
@@ -112,7 +105,6 @@ def remove_nickname_history(
     db.delete(h)
     audit_log(db, user["username"], "delete", "nickname_history", history_id, {"account_id": account_id})
     db.commit()
-
 
 @router.get("/{account_id}/memberships", response_model=list[schemas.MembershipBrief])
 def list_memberships(person_id: int, account_id: int, db: Session = Depends(get_db), user: dict | None = Depends(optional_user)):

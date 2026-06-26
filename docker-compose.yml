@@ -5,26 +5,19 @@ services:
     restart: unless-stopped
     volumes:
       - ./data:/app/data
-      - ./backend/app:/app/app
     env_file:
       - .env
     environment:
       - DATA_DIR=/app/data
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  frontend:
+  nginx:
     build:
       context: ./frontend
-      target: dev
-    container_name: recaller-frontend
+    container_name: recaller-nginx
     restart: unless-stopped
     ports:
-      - "5174:5173"
+      - "5174:80"
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
-      - ./frontend/index.html:/app/index.html
-      - ./frontend/vite.config.js:/app/vite.config.js
+      - ./data:/data:ro
     depends_on:
       - backend
-    command: npm run dev -- --host 0.0.0.0

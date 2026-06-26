@@ -8,12 +8,15 @@ def run_migration(db: Session):
     _add_person_card_bg(db)
     _add_user_avatar(db)
     _add_board_type(db)
-    _ensure_default_board(db)
     _add_user_enabled(db)
     _create_system_config(db)
     _add_user_limits(db)
     _bump_user_auto_uid(db)
     _upgrade_admin_to_superadmin(db)
+    _add_user_email(db)
+    _create_email_verifications(db)
+    _add_person_allow_download(db)
+    _add_board_random_order(db)
     db.commit()
 
 def _has_table(db: Session, name: str) -> bool:
@@ -138,6 +141,38 @@ def _bump_user_auto_uid(db: Session):
             db.execute(text("UPDATE sqlite_sequence SET seq = 10 WHERE name = 'users'"))
     except Exception:
         pass
+    db.commit()
+
+def _add_user_email(db: Session):
+    for col in [("email", "VARCHAR(200)"), ("email_verified", "BOOLEAN NOT NULL DEFAULT 0")]:
+        if not _column_exists(db, "users", col[0]):
+            db.execute(text(f"ALTER TABLE users ADD COLUMN {col[0]} {col[1]}"))
+    db.commit()
+
+def _create_email_verifications(db: Session):
+    if not _has_table(db, "email_verifications"):
+        db.execute(text("""
+            CREATE TABLE email_verifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email VARCHAR(200) NOT NULL,
+                code VARCHAR(10) NOT NULL,
+                purpose VARCHAR(20) NOT NULL DEFAULT 'register',
+                expires_at DATETIME NOT NULL,
+                used BOOLEAN NOT NULL DEFAULT 0,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME
+            )
+        """))
+    db.commit()
+
+def _add_person_allow_download(db: Session):
+    if not _column_exists(db, "persons", "allow_download"):
+        db.execute(text("ALTER TABLE persons ADD COLUMN allow_download BOOLEAN NOT NULL DEFAULT 0"))
+    db.commit()
+
+def _add_board_random_order(db: Session):
+    if not _column_exists(db, "boards", "random_order"):
+        db.execute(text("ALTER TABLE boards ADD COLUMN random_order BOOLEAN NOT NULL DEFAULT 0"))
     db.commit()
 
 def _utcnow_str() -> str:

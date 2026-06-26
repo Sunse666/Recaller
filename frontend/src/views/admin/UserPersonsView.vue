@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { api } from '../../api/client'
 import { useBoardStore } from '../../stores/boards'
 import { useLabels } from '../../utils/labels'
+import { getThumbUrl } from '../../utils/images'
 
 const labels = useLabels()
 const boardStore = useBoardStore()
@@ -109,14 +110,14 @@ onMounted(loadPersons)
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div v-for="p in persons" :key="p.id" class="bg-white rounded-xl border border-pink-50 p-4 hover:shadow-md transition">
           <div class="flex items-center gap-3 mb-2">
-            <img :src="p.avatar || '/default-avatar.svg'" class="w-10 h-10 rounded-full object-cover bg-pink-100" />
+            <img :src="getThumbUrl(p.avatar) || '/default-avatar.svg'" loading="lazy" class="w-10 h-10 rounded-full object-cover bg-pink-100" @error="e => { if (p.avatar && e.target.src !== p.avatar) e.target.src = p.avatar }" />
             <div class="flex-1 min-w-0">
               <p class="font-medium text-gray-900 truncate">{{ p.name }}</p>
               <p v-if="p.remark" class="text-xs text-gray-400 truncate">{{ p.remark }}</p>
             </div>
             <span class="text-primary text-xs">{{ '★'.repeat(p.importance) }}</span>
           </div>
-          <div class="flex gap-1 mb-2">
+          <div class="flex flex-wrap gap-1 mb-2">
             <span v-for="t in p.circle_tags" :key="t" class="px-1.5 py-0.5 text-[10px] bg-blue-50 text-blue-600 rounded-full">{{ t }}</span>
           </div>
           <div class="flex gap-2 text-xs">

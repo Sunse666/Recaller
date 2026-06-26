@@ -20,6 +20,7 @@ def _person_to_brief(p: Person) -> schemas.PersonBrief:
         importance=p.importance,
         notes=decrypt(p.notes) if p.notes else None,
         account_count=len(p.accounts) if p.accounts else 0,
+        allow_download=bool(p.allow_download),
         board_id=p.board_id,
     )
 
@@ -30,6 +31,7 @@ def _person_to_detail(p: Person) -> schemas.PersonDetail:
         circle_tags=json.loads(p.circle_tags or "[]"),
         impression_tags=json.loads(p.impression_tags or "[]"),
         importance=p.importance, notes=decrypt(p.notes), birthday=p.birthday,
+        allow_download=bool(p.allow_download),
         board_id=p.board_id,
         created_at=p.created_at, updated_at=p.updated_at,
     )
@@ -100,6 +102,7 @@ def create_person(data: schemas.PersonCreate, db: Session = Depends(get_db), use
         circle_tags=json.dumps(data.circle_tags, ensure_ascii=False),
         impression_tags=json.dumps(data.impression_tags, ensure_ascii=False),
         importance=data.importance, notes=encrypt(data.notes), birthday=data.birthday,
+        allow_download=data.allow_download,
     )
     db.add(p); db.flush()
     audit_log(db, user["username"], "create", "person", p.id, {"name": data.name, "board_id": bid})

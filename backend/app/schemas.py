@@ -24,6 +24,7 @@ class BoardCreate(BaseModel):
     board_type: str = Field(default="image", max_length=20)
     field_config: dict = {}
     is_public: bool = False
+    random_order: bool = False
     sort_order: int = 0
 
 class BoardUpdate(BaseModel):
@@ -37,6 +38,7 @@ class BoardUpdate(BaseModel):
     board_type: Optional[str] = Field(default=None, max_length=20)
     field_config: Optional[dict] = None
     is_public: Optional[bool] = None
+    random_order: Optional[bool] = None
     sort_order: Optional[int] = None
 
 class BoardResponse(BaseModel):
@@ -52,6 +54,7 @@ class BoardResponse(BaseModel):
     board_type: str
     field_config: dict
     is_public: bool
+    random_order: bool = False
     sort_order: int
     created_at: Optional[datetime.datetime] = None
     model_config = {"from_attributes": True}
@@ -68,6 +71,7 @@ class PersonCreate(BaseModel):
     importance: int = Field(default=0, ge=0, le=5, description="重要性 0-5")
     notes: Optional[str] = Field(default=None, max_length=2000)
     birthday: Optional[str] = Field(default=None, max_length=20)
+    allow_download: bool = False
     board_id: Optional[int] = None
 
 class PersonUpdate(BaseModel):
@@ -82,6 +86,7 @@ class PersonUpdate(BaseModel):
     importance: Optional[int] = Field(default=None, ge=0, le=5)
     notes: Optional[str] = Field(default=None, max_length=2000)
     birthday: Optional[str] = Field(default=None, max_length=20)
+    allow_download: Optional[bool] = None
     board_id: Optional[int] = None
 
 class PersonBrief(BaseModel):
@@ -96,6 +101,7 @@ class PersonBrief(BaseModel):
     importance: int = 0
     notes: Optional[str] = None
     account_count: int = 0
+    allow_download: bool = False
     board_id: Optional[int] = None
     model_config = {"from_attributes": True}
 
@@ -112,6 +118,7 @@ class PersonDetail(BaseModel):
     importance: int = 0
     notes: Optional[str] = None
     birthday: Optional[str] = None
+    allow_download: bool = False
     board_id: Optional[int] = None
     created_at: Optional[datetime.datetime] = None
     updated_at: Optional[datetime.datetime] = None

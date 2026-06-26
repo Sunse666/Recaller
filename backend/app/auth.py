@@ -15,6 +15,10 @@ _LOGIN_ATTEMPTS: dict[str, list[float]] = {}
 _MAX_LOGIN_ATTEMPTS = 5
 _LOGIN_WINDOW = 60
 
+_FAILED_PASSWORDS: dict[str, list[float]] = {}
+_MAX_FAILED = 10
+_FAILED_WINDOW = 900
+
 def check_login_rate(ip: str) -> bool:
     now = time.time()
     attempts = [t for t in _LOGIN_ATTEMPTS.get(ip, []) if now - t < _LOGIN_WINDOW]
@@ -23,6 +27,21 @@ def check_login_rate(ip: str) -> bool:
         return False
     attempts.append(now)
     return True
+
+def record_failed_login(username: str):
+    now = time.time()
+    entries = [t for t in _FAILED_PASSWORDS.get(username, []) if now - t < _FAILED_WINDOW]
+    entries.append(now)
+    _FAILED_PASSWORDS[username] = entries
+
+def clear_failed_logins(username: str):
+    _FAILED_PASSWORDS.pop(username, None)
+
+def is_account_locked(username: str) -> bool:
+    now = time.time()
+    entries = [t for t in _FAILED_PASSWORDS.get(username, []) if now - t < _FAILED_WINDOW]
+    _FAILED_PASSWORDS[username] = entries
+    return len(entries) >= _MAX_FAILED
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -70,6 +89,11 @@ def verify_token_full(token: str) -> dict | None:
         ).first()
         if not entry:
             return None
+        user = db.query(User).filter(User.uid == entry.uid, User.enabled == True).first()
+        if not user:
+            db.query(AuthToken).filter(AuthToken.token == token).delete()
+            db.commit()
+            return None
         new_expiry = now + datetime.timedelta(hours=24)
         db.query(AuthToken).filter(AuthToken.id == entry.id).update({"expires_at": new_expiry})
         db.commit()
@@ -93,19 +117,29 @@ def revoke_user_tokens(username: str):
     finally:
         db.close()
 
+def _next_available_uid(db: Session) -> str:
+    """分配下一个可用 UID，从 11 开始，跳过已被占用的。"""
+    existing = set()
+    for (uid,) in db.query(User.uid).all():
+        if uid and uid.lstrip('-').isdigit():
+            existing.add(int(uid))
+    n = 11
+    while n in existing:
+        n += 1
+    return str(n)
+
+
 def create_user(db: Session, username: str, password: str, role: str = "user") -> User:
     existing = db.query(User).filter(User.username == username).first()
     if existing:
         raise ValueError(f"用户名 {username} 已存在")
     user = User(
-        uid="0",
+        uid=_next_available_uid(db),
         username=username,
         password_hash=hash_password(password),
         role=role,
     )
     db.add(user)
-    db.flush()
-    user.uid = str(user.id)
     db.commit()
     db.refresh(user)
     return user

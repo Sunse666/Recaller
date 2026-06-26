@@ -10,7 +10,6 @@ from .. import schemas
 
 router = APIRouter(prefix="/api/boards", tags=["boards"])
 
-
 def _board_to_response(b: Board) -> schemas.BoardResponse:
     return schemas.BoardResponse(
         id=b.id,
@@ -25,10 +24,10 @@ def _board_to_response(b: Board) -> schemas.BoardResponse:
         board_type=b.board_type,
         field_config=json.loads(b.field_config or "{}"),
         is_public=b.is_public,
+        random_order=bool(b.random_order),
         sort_order=b.sort_order,
         created_at=b.created_at,
     )
-
 
 @router.get("", response_model=list[schemas.BoardResponse])
 def list_boards(
@@ -36,7 +35,7 @@ def list_boards(
     user: dict = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    if uid and user["role"] == "admin":
+    if uid and user["role"] in ("admin", "superadmin"):
         target = get_user_by_uid(db, uid)
         if not target:
             raise HTTPException(status_code=404, detail="用户不存在")
@@ -49,7 +48,6 @@ def list_boards(
     boards = db.query(Board).filter(Board.user_id == u.id).order_by(Board.sort_order).all()
     return [_board_to_response(b) for b in boards]
 
-
 @router.get("/default", response_model=schemas.BoardResponse)
 def get_default_board(user: dict = Depends(require_user), db: Session = Depends(get_db)):
     u = get_user_by_uid(db, user["uid"])
@@ -59,7 +57,6 @@ def get_default_board(user: dict = Depends(require_user), db: Session = Depends(
     if not board:
         raise HTTPException(status_code=404, detail="没有画板，请先创建一个")
     return _board_to_response(board)
-
 
 @router.post("", response_model=schemas.BoardResponse, status_code=201)
 def create_board(data: schemas.BoardCreate, user: dict = Depends(require_user), db: Session = Depends(get_db)):
@@ -78,6 +75,7 @@ def create_board(data: schemas.BoardCreate, user: dict = Depends(require_user), 
         board_type=data.board_type,
         field_config=json.dumps(data.field_config, ensure_ascii=False),
         is_public=data.is_public,
+        random_order=data.random_order,
         sort_order=data.sort_order,
     )
     db.add(b)
@@ -87,7 +85,6 @@ def create_board(data: schemas.BoardCreate, user: dict = Depends(require_user), 
     db.refresh(b)
     return _board_to_response(b)
 
-
 @router.get("/{board_id}", response_model=schemas.BoardResponse)
 def get_board(board_id: int, user: dict = Depends(require_user), db: Session = Depends(get_db)):
     board = db.query(Board).get(board_id)
@@ -95,7 +92,6 @@ def get_board(board_id: int, user: dict = Depends(require_user), db: Session = D
         raise HTTPException(status_code=404, detail="画板不存在")
     require_board_owner(db, board_id, user)
     return _board_to_response(board)
-
 
 @router.put("/{board_id}", response_model=schemas.BoardResponse)
 def update_board(board_id: int, data: schemas.BoardUpdate, user: dict = Depends(require_user), db: Session = Depends(get_db)):
@@ -116,7 +112,6 @@ def update_board(board_id: int, data: schemas.BoardUpdate, user: dict = Depends(
     db.commit()
     db.refresh(board)
     return _board_to_response(board)
-
 
 @router.delete("/{board_id}", status_code=204)
 def delete_board(board_id: int, user: dict = Depends(require_user), db: Session = Depends(get_db)):
